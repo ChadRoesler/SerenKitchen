@@ -1,0 +1,44 @@
+# ════════════════════════════════════════════════════════════════════════
+#  seren-kitchen.yaml - copy to ~/seren-kitchen/seren-kitchen.yaml
+# ════════════════════════════════════════════════════════════════════════
+
+server:
+  host: 127.0.0.1          # loopback. Wider needs a token, or the kitchen refuses to start.
+  port: 7431
+  # bearer_token_env: SEREN_KITCHEN_TOKEN
+
+# Where the sheets, magnets and freezer facts live: one JSON file, kitchen.json.
+# state_dir: ~/seren-kitchen/state
+
+# Fonts are PATHS to files on this box, never shipped with the kitchen: the display
+# faces on the freezer are whatever you hold a licence for, and the handwriting on
+# the notes is whoever's hand lives here. Unset, the page uses system fonts.
+# fonts:
+#   name: ~/fonts/AirConditioner.ttf         # the repo name on the freezer
+#   freezer: ~/fonts/AlphaFridgeMagnets.ttf  # the release and build on the freezer
+#   hand: ~/seren-kitchen/HouseHand.ttf      # the notes, unless the author has a hand of their own:
+#   hands:
+#     alex: ~/seren-kitchen/AlexHand.ttf      # a sheet signed "alex" is drawn in this
+
+# Whose house this is: the names the page puts on "to the person" and "to the partner".
+# house:
+#   person: alex
+#   partner: ada
+
+# The wall starts as the whole Seren family, each fridge in its app's own colour.
+# Add a fridge, recolour one, or take one down:
+# fridges:
+#   - name: my-side-project
+#     display: Side Project
+#     group: other
+#     accent: "#7fd1c1"
+#     repo: me/side-project
+#   - name: seren-theatre
+#     accent: "#8a3a33"       # a lighter wine
+# drop: [seren-carabiner]
+
+# A decision nobody has picked in this many days goes off like milk.
+sour_after_days: 7
+
+updates:
+  enabled: true

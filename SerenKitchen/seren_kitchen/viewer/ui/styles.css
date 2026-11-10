@@ -1,0 +1,311 @@
+/* the fonts: served from this kitchen's config when set, otherwise the stacks fall through */
+@font-face { font-family: "KitchenName"; src: url(/api/fonts/name); font-display: swap; }
+@font-face { font-family: "KitchenFreezer"; src: url(/api/fonts/freezer); font-display: swap; }
+@font-face { font-family: "KitchenHand"; src: url(/api/fonts/hand); font-display: swap; }
+:root {
+  --f-name: "KitchenName", "Air Conditioner", "Bradley Hand", "Segoe Print", cursive;
+  --f-freezer: "KitchenFreezer", "AlphaFridgeMagnets", "Impact", "Arial Black", sans-serif;
+  --f-hand: "KitchenHand", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+  --wall: #efe7d6; --tile: #e4dbc6; --paper: #fff8e1; --ink: #1b1b1f;
+}
+
+/* the wall */
+.kitchen { background: var(--wall);
+  background-image: linear-gradient(var(--tile) 1px, transparent 1px), linear-gradient(90deg, var(--tile) 1px, transparent 1px);
+  background-size: 48px 48px; border-radius: var(--radius); padding: 22px 18px 0; color: var(--ink); }
+.room { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 42px 16px; align-items: start; }
+.fridge { position: relative; background: var(--accent); border-radius: 14px 14px 10px 10px; cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--edge), 0 10px 24px rgba(0,0,0,.18); transition: transform .12s; }
+.fridge:hover { transform: translateY(-3px); }
+.fridge.held { outline: 3px dashed rgba(0,0,0,.25); outline-offset: 4px; }
+.freezer { position: relative; height: 150px; background: var(--freezer); border-radius: 14px 14px 0 0; border-bottom: 3px solid var(--edge);
+  padding: 12px 14px 0; color: var(--fink); }
+/* the repo's name: bold (a display face has one weight, so the stroke does the bolding) and centred on the freezer */
+.freezer .name { font-family: var(--f-name); font-size: var(--name-px, 24px); line-height: 1; letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: center; padding-right: 22px; font-weight: 700; }
+.freezer .facts { font-family: var(--f-freezer); font-size: 15px; margin-top: 9px; letter-spacing: 1px; }
+.handle { position: absolute; right: 14px; top: 14px; width: 8px; height: 90px; border-radius: 4px; background: var(--edge); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.door { position: relative; height: 270px; padding: 10px; overflow: hidden; border-radius: 0 0 10px 10px; }
+.door .handle { top: 16px; height: 110px; }
+.magnet { position: absolute; width: 54px; height: 54px; border-radius: 50%; background: #fff3c4; padding: 4px; box-sizing: border-box;
+  box-shadow: 0 0 0 2px var(--ink), 0 3px 6px rgba(0,0,0,.35); z-index: 3; cursor: grab; }
+.magnet img, .magnet .blank { width: 100%; height: 100%; border-radius: 50%; display: block; background: #d9b382; object-fit: cover; }
+.magnet .blank { display: flex; align-items: center; justify-content: center; font-family: var(--f-hand); font-size: 18px; color: var(--ink); }
+.magnet.counter { position: static; display: inline-block; margin: 0 6px; }
+.note { position: absolute; left: var(--x); top: var(--y); width: 150px; background: var(--paper); padding: 10px 10px 8px; transform: rotate(var(--rot));
+  box-shadow: 0 2px 5px rgba(0,0,0,.25); border-radius: 2px; color: var(--ink); z-index: 2; }
+.note h4 { margin: 0 0 4px; font-weight: 400; font-size: 17px; line-height: 1.05; font-family: var(--f-hand); color: var(--ink); text-transform: none; letter-spacing: 0; }
+.note p, .note li { margin: 0; font-size: 14px; line-height: 1.2; opacity: .85; font-family: var(--f-hand); }
+.note ul { margin: 0; padding-left: 16px; }
+.note li.done { text-decoration: line-through; opacity: .5; }
+.note.sour { background: #f1f0e4; } .note.sour h4::before { content: "🥛 "; }
+.note .by { font-size: 11px; opacity: .55; margin-top: 4px; font-family: var(--f-hand); }
+.pin { position: absolute; top: -7px; left: 50%; width: 14px; height: 14px; border-radius: 50%; transform: translateX(-50%);
+  box-shadow: 0 2px 3px rgba(0,0,0,.4), inset 0 -2px 2px rgba(0,0,0,.25); }
+.door .empty { position: absolute; left: 14px; right: 14px; bottom: 14px; font-family: var(--f-freezer); font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; opacity: .5; color: var(--fink); text-align: center; }
+.legend { font-family: var(--mono); font-size: 10px; color: #555; padding: 5px 2px 0; position: absolute; left: 0; right: 0; top: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note.compact { width: 136px; padding: 8px 9px 6px; }
+.note.compact h4 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note.compact p { font-size: 12px; opacity: .7; }
+.note input[type=checkbox] { accent-color: #2f6fb3; width: 13px; height: 13px; vertical-align: -2px; margin: 0 4px 0 0; }
+
+/* the big fridge: the whole wall is one fridge; the little ones are polaroids taped to its door */
+.big { background: #e9e4d8; border-radius: 26px 26px 16px 16px; box-shadow: inset 0 0 0 3px #a9a190, 0 24px 60px rgba(0,0,0,.25); position: relative; color: var(--ink); }
+.bigfreezer { position: relative; min-height: 290px; background: #cfc8b8; border-radius: 26px 26px 0 0; border-bottom: 6px solid #a9a190; padding: 22px 30px 24px; }
+.bigfreezer h1 { font-family: var(--f-name); font-weight: 700; font-size: 52px; margin: 0; text-align: center; letter-spacing: 1px; }
+.bigfreezer .sub { font-family: var(--f-freezer); font-size: 30px; letter-spacing: 3px; text-align: center; margin-top: 6px; }
+.bigfreezer .sub span { -webkit-text-stroke: 2px #1b1b1f; paint-order: stroke fill; }
+.big-handle { position: absolute; right: 34px; top: 40px; width: 14px; height: 150px; border-radius: 7px; background: #a9a190; box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); }
+.big-handle.door { top: 90px; height: 420px; }
+.bigfreezer .big-dispenser { position: absolute; left: 34px; bottom: 18px; width: 150px; height: 96px; right: auto; top: auto; }
+.bigfreezer .big-dispenser .chute { width: 60px; height: 30px; }
+.bigfreezer .big-dispenser .lever { font-size: 13px; letter-spacing: 2px; }
+.fznotes { margin: 26px 70px 0 210px; display: flex; flex-wrap: wrap; gap: 18px; min-height: 60px; }
+.fznotes .card-note { position: static; width: fit-content; min-width: 150px; max-width: 240px; }
+.fzempty { font-family: var(--f-freezer); font-size: 14px; letter-spacing: 2px; opacity: .6; align-self: center; }
+.fz-leave { position: absolute; left: 34px; bottom: 124px; }
+.bigdoor { position: relative; padding: 36px 70px 50px 36px; min-height: 500px; }
+.housenotes { margin: 0 40px 30px 0; padding: 0 0 18px; border-bottom: 2px dashed #a9a190; }
+.housenotes:empty, .housenotes[hidden] { display: none; }
+.polaroids { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 34px 22px; align-items: start; }
+.polaroid { margin: 0; position: relative; background: #fff; padding: 10px 10px 8px; box-shadow: 0 3px 10px rgba(0,0,0,.28); transform: rotate(var(--rot)); transition: transform .18s, box-shadow .18s; cursor: pointer; }
+.polaroid:hover { transform: rotate(0deg) scale(1.28); z-index: 5; box-shadow: 0 12px 28px rgba(0,0,0,.35); }
+.polaroid.dragging { opacity: .5; } .polaroid.over { outline: 3px dashed #a9a190; outline-offset: 4px; }
+.polaroid .tape { position: absolute; top: -10px; left: 50%; width: 60px; height: 18px; transform: translateX(-50%) rotate(-3deg); background: rgba(255,236,160,.75); box-shadow: 0 1px 2px rgba(0,0,0,.2); cursor: grab; z-index: 2; }
+.polaroid .tape:hover { background: rgba(255,226,120,.95); }
+.mini { background: var(--accent); border-radius: 8px 8px 5px 5px; box-shadow: inset 0 0 0 2px var(--edge); height: 190px; position: relative; overflow: hidden; }
+.mfreezer { height: 72px; background: var(--freezer); border-bottom: 2px solid var(--edge); padding: 7px 8px; color: var(--fink); position: relative; }
+.mname { font-family: var(--f-name); font-weight: 700; font-size: 14px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
+.mfacts { font-family: var(--f-freezer); font-size: 22px; text-align: center; letter-spacing: 1.5px; margin-top: 4px; line-height: 1; }
+.mfacts span { -webkit-text-stroke: 2px #1b1b1f; paint-order: stroke fill; }
+.mfacts .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--dot); box-shadow: 0 0 0 2px #1b1b1f; vertical-align: middle; margin-left: 4px; }
+.mhandle { position: absolute; right: 7px; top: 10px; width: 4px; height: 70px; border-radius: 2px; background: var(--edge); box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
+.mhandle.top { height: 40px; }
+.mdoor { position: relative; height: 116px; padding: 6px; }
+.mdoor.bare::after { content: "EMPTY"; position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-family: var(--f-freezer); font-size: 14px; letter-spacing: 2px; opacity: .75; color: var(--fink); }
+.mmagnet { position: absolute; left: 8px; top: 6px; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 2px #1b1b1f; background: #fff3c4; object-fit: cover; }
+.mnote { position: absolute; width: 40px; height: 30px; background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.3); transform: rotate(var(--r)); }
+.mnote:nth-of-type(1) { left: 46px; top: 40px; } .mnote:nth-of-type(2) { left: 60px; top: 14px; } .mnote:nth-of-type(3) { left: 20px; top: 56px; }
+.polaroid figcaption { font-family: var(--f-hand); font-size: 14px; margin-top: 8px; text-align: center; }
+.polaroid figcaption .cnt { display: block; font-size: 10px; opacity: .6; font-family: var(--mono); }
+/* the hinge: handles on the right for a left hand (ours); a right-handed house flips them */
+body.hinge-left .mhandle, body.hinge-left .handle, body.hinge-left .big-handle { right: auto; left: 7px; }
+body.hinge-left .handle { left: 14px; } body.hinge-left .big-handle { left: 34px; } body.hinge-left .big-dispenser { left: auto; right: 34px; }
+body.hinge-left .dispenser { right: auto; left: 34px; }
+body.tidy .polaroid, body.tidy .polaroid:hover { transform: none; }
+
+/* the counter under the fridges */
+.counter { margin: 44px -18px 0; }
+.counter-top { height: 14px; background: #c9b79a; border-top: 3px solid #b7a384; box-shadow: 0 -4px 10px rgba(0,0,0,.08); }
+.counter-things { background: #8f7c62; padding: 12px 18px 16px; display: flex; align-items: center; gap: 16px; border-radius: 0 0 var(--radius) var(--radius); }
+.counter-magnets { flex: 1; min-height: 54px; display: flex; align-items: center; }
+.cheese { font-size: 30px; cursor: pointer; user-select: none; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); transition: transform .1s; }
+.cheese:active { transform: scale(.9) rotate(-8deg); }
+
+/* no fridge open: a grey fridge with its door swung out and the light on inside, which is also the way back to the wall */
+.no-fridge { display: flex; justify-content: center; padding: 30px 0 50px; cursor: pointer; }
+.no-fridge[hidden] { display: none; }
+.ghost-fridge { width: 260px; perspective: 900px; }
+.gfreezer { height: 120px; background: #c9c4b8; border-radius: 14px 14px 0 0; border-bottom: 3px solid #9a9488; padding: 18px 14px 0; text-align: center; box-shadow: inset 0 0 0 2px #9a9488; }
+.gname { font-family: var(--f-freezer); font-size: 18px; letter-spacing: 2px; color: #4b4740; }
+.gfacts { font-family: var(--f-freezer); font-size: 12px; letter-spacing: 2px; color: #6b665c; margin-top: 10px; }
+/* the cabinet: the inside, with the shelves and the bulb; the door is a panel hinged on the right (our hinge) that swings toward you */
+.gbox { position: relative; height: 300px; background: #2a2622; border-radius: 0 0 10px 10px; box-shadow: inset 0 0 0 2px #9a9488, inset 0 0 60px rgba(255,236,160,.25); overflow: visible; }
+.gshelf { position: absolute; left: 10px; right: 10px; height: 4px; background: #6b665c; box-shadow: 0 2px 4px rgba(0,0,0,.5); }
+.gshelf.s1 { top: 92px; } .gshelf.s2 { top: 172px; } .gshelf.s3 { top: 250px; }
+.bulb { position: absolute; left: 50%; top: 14px; width: 18px; height: 26px; margin-left: -9px; border-radius: 9px 9px 10px 10px; background: radial-gradient(#fff6c8, #f2cf5a); box-shadow: 0 0 34px 14px rgba(255,230,150,.65); }
+.gdoor { position: absolute; inset: 0; background: #e9e4d8; border-radius: 0 0 10px 10px; box-shadow: inset 0 0 0 2px #9a9488, -8px 0 18px rgba(0,0,0,.25);
+  transform: rotateY(38deg); transform-origin: right center; transition: transform .25s; }
+.ghandle { position: absolute; left: 14px; top: 60px; width: 8px; height: 110px; border-radius: 4px; background: #9a9488; }
+.gdoor .hand { position: absolute; left: 34px; right: 16px; bottom: 26px; font-family: var(--f-hand); font-size: 15px; color: #4b4740; line-height: 1.3; }
+.no-fridge:hover .gdoor { transform: rotateY(52deg); }
+body.tidy .gdoor, body.tidy .no-fridge:hover .gdoor { transform: rotateY(38deg); }
+body.hinge-left .gdoor { transform-origin: left center; transform: rotateY(-38deg); } body.hinge-left .no-fridge:hover .gdoor { transform: rotateY(-52deg); }
+body.hinge-left .ghandle { left: auto; right: 14px; }
+
+/* an open fridge */
+.open { display: grid; grid-template-columns: 300px 1fr; gap: var(--gap); align-items: start; }
+.open-door .fridge-like { position: relative; }
+.open-door .freezer.big { height: 200px; border-radius: 14px 14px 0 0; background: var(--freezer); color: var(--fink); }
+.open-door .freezer.big .name { font-size: var(--name-px, 30px); }
+/* the open door lays its sheets out in a column so nothing hides under anything; the wall keeps the pile */
+.open-door .door.big { min-height: 440px; height: auto; background: var(--accent); border-radius: 0 0 10px 10px; box-shadow: inset 0 0 0 2px var(--edge);
+  display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 12px 14px 22px; }
+.open-door .door.big .magnets { min-height: 60px; position: relative; width: 100%; }
+.open-door .door.big .magnets .magnet { top: 0; left: 0; }
+.open-door .door.big .note { position: static; margin-left: var(--x); width: 190px; }
+.open-door .door.big .note.compact { width: 160px; }
+.open-door .door.big .empty { position: static; }
+.open-door .held { margin-top: 8px; }
+.open-inside { background: #f4f1ea; border-radius: var(--radius); padding: 10px 14px 14px; color: var(--ink); box-shadow: inset 0 0 0 2px #ddd4c3; min-height: 580px; }
+.shelf { padding: 8px 0 14px; border-bottom: 8px solid #cfc3ad; margin-bottom: 10px; }
+.shelf h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #6b6356; }
+.shelf-items { display: flex; flex-wrap: wrap; gap: 12px; min-height: 40px; }
+.shelf .note { position: static; transform: rotate(var(--rot)); width: 200px; }
+.shelf.leftovers .note { opacity: .7; filter: saturate(.6); }
+.shelf.crisper { background: rgba(140,180,120,.12); border-radius: 8px; padding: 8px 10px 14px; }
+.note .acts { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+.note .acts button, .sheet-list button { font-size: 11px; padding: 2px 7px; }
+.note li label { cursor: pointer; }
+.open { grid-template-rows: auto 1fr; }
+.open[hidden] { display: none; }   /* display:grid would otherwise beat the hidden attribute and leak the bar */
+.open-door { grid-row: 2; } .open-inside { grid-row: 2; }
+.leave-dlg { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; width: min(640px, 92vw); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.leave-dlg::backdrop { background: rgba(0,0,0,.55); }
+.leave-dlg h3 { margin: 0 0 10px; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-dim); }
+.leave-dlg .parent { margin-bottom: 12px; }
+.leave-dlg .parent .note { position: static; transform: rotate(var(--rot)); width: min(100%, 420px); margin: 10px 0 4px 6px; }
+.leave-dlg .row.top { align-items: flex-start; }
+.leave-dlg textarea, .leave-dlg input, .leave-dlg select { flex: 1; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font: inherit; }
+
+/* the freezer's facts: RELEASE in magnet letters, the build as a coloured dot in a black ring */
+.freezer .facts { font-family: var(--f-freezer); font-size: 19px; margin-top: 10px; letter-spacing: 1.5px; line-height: 1.55; }
+/* each magnet letter gets a thin black edge, like the plastic ones do */
+.freezer .facts span { -webkit-text-stroke: 1.2px #1b1b1f; paint-order: stroke fill; text-shadow: 0 1px 0 rgba(0,0,0,.35); }
+.freezer .facts .dim { opacity: .55; }
+.freezer .facts .build { display: flex; align-items: center; gap: 7px; }
+.freezer .dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: var(--dot); box-shadow: 0 0 0 3px #1b1b1f, 0 0 0 4px rgba(255,255,255,.35); }
+.freezer .facts-err { font-family: var(--mono); font-size: 10px; opacity: .7; }
+.open-door .freezer.big .facts { font-size: 22px; }
+.open-door .freezer.big .dot { width: 18px; height: 18px; }
+
+/* a note stuck on a note */
+.note .replies { margin: 8px 0 0 10px; display: flex; flex-direction: column; gap: 8px; }
+.note.reply { position: static; width: auto; transform: rotate(var(--rot)); background: #fffdf3; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.note .ghost { background: none; border: none; color: #777; cursor: pointer; font-size: 12px; padding: 0 4px; }
+.note .ghost:hover { color: var(--ink); }
+.note .body { white-space: pre-wrap; font-size: 13px; max-height: 9em; overflow: auto; }
+.dim { opacity: .6; }
+
+/* the leftovers drawer: a drawer front at the bottom of the fridge; pull it and the finished sheets are in it */
+.drawer { margin-top: 6px; }
+.drawer-front { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: none; cursor: pointer; text-align: left;
+  background: linear-gradient(#e9e3d4, #d6cdb8); border-radius: 6px; box-shadow: inset 0 -3px 0 #bfb39b, 0 2px 4px rgba(0,0,0,.2); color: #4b4336; }
+.drawer-front:hover { background: linear-gradient(#efe9db, #dcd3be); }
+.drawer-handle { width: 54px; height: 10px; border-radius: 5px; background: #8f7c62; box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
+.drawer-label { font-family: var(--f-freezer); letter-spacing: 2px; font-size: 13px; }
+.drawer-count { margin-left: auto; font-family: var(--f-hand); font-size: 14px; opacity: .75; }
+.drawer.open .drawer-front { border-radius: 6px 6px 0 0; box-shadow: inset 0 -3px 0 #bfb39b; }
+.drawer-inside { background: #ece6d8; border: 2px solid #cfc3ad; border-top: none; border-radius: 0 0 6px 6px; padding: 12px; }
+.drawer-inside .card-note { opacity: .75; filter: saturate(.7); }
+
+/* cards: the glance at a sheet. a thumbnail is never cropped, only fitted to the card's width */
+.card-note { cursor: pointer; }
+.card-note:hover { box-shadow: 0 4px 10px rgba(0,0,0,.35); }
+.card-note .thumb { display: block; width: 100%; height: auto; margin: 4px 0 6px; border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); background: #eee; }
+.card-note .ex { font-size: 13px; opacity: .8; }
+.card-note.tiny-card { width: 136px; padding: 8px 9px 6px; }
+.card-note.tiny-card h4 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-note.tiny-card .ex { display: none; }
+.card-note.tiny-card .thumb { max-height: 70px; width: auto; max-width: 100%; }
+.card-note.finished { opacity: .75; filter: saturate(.7); }
+/* on the shelves a card is as big as what is on it: a thank-you is small, a list with a picture is not */
+.shelf-items .card-note { position: static; width: fit-content; min-width: 130px; max-width: 280px; transform: rotate(var(--rot)); }
+.shelf.crisper .card-note { max-width: 340px; min-width: 200px; }
+.card-note .thumb { max-width: 100%; }
+/* the pile on a wall fridge: every sheet where it was left, overlapping, newest on top */
+.pile { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.pile .card-note { pointer-events: auto; transform: rotate(var(--rot)) scale(var(--pile, 1)); transform-origin: top left; }
+.pile .card-note:hover { z-index: 40; transform: rotate(0deg) scale(1); }
+.open-door .door.big .card-note { position: static; margin-left: var(--x); width: 200px; }
+
+/* the open fridge's top bar: leave a sheet, who holds it, back to the wall; it stays put as you scroll */
+.open-bar { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; position: sticky; top: 0; z-index: 5;
+  background: var(--bg); padding: 8px 0 10px; border-bottom: 1px solid var(--border); }
+.spacer { flex: 1; }
+button.small { font-size: 12px; padding: 3px 9px; }
+.room-bar { display: flex; align-items: center; gap: 10px; margin: -8px 0 14px; color: #6b6356; font-family: var(--f-hand); font-size: 15px; }
+
+/* the dispenser: an ice-maker button on the freezer that polls this fridge */
+.dispenser { position: absolute; right: 34px; bottom: 12px; width: 64px; height: 44px; border: 2px solid rgba(0,0,0,.45); border-radius: 6px; background: #1f1f24; color: #ddd;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; cursor: pointer; padding: 3px; box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+.dispenser .chute { width: 26px; height: 14px; border-radius: 0 0 6px 6px; background: #0b0b0e; box-shadow: inset 0 -2px 4px rgba(255,255,255,.08); }
+.dispenser .lever { font-family: var(--f-freezer); font-size: 9px; letter-spacing: 1px; color: #9ad; }
+.dispenser.pressed { transform: translateY(1px); box-shadow: inset 0 3px 8px rgba(0,0,0,.8); }
+.dispenser.pressed .chute::after { content: "🧊"; font-size: 12px; display: block; text-align: center; animation: drop .6s ease-in; }
+@keyframes drop { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(6px); opacity: 1; } }
+
+/* the sheet, full size, in its own dialog. the dialog scrolls; the note itself does not, so its pin is never cut off */
+.sheet-dlg { background: transparent; border: none; padding: 0; width: min(760px, 94vw); max-height: 92vh; overflow: visible; }
+.sheet-dlg::backdrop { background: rgba(0,0,0,.6); }
+#sheetFull { max-height: 88vh; overflow: auto; padding: 22px 28px 28px; }
+.sheet-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; color: #ddd; }
+.sheet-top .tiny { font-family: var(--f-hand); color: #e8e0cc; font-size: 15px; }
+.sheet-x { position: absolute; top: -6px; right: -6px; z-index: 10; width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff8e1; background: #1b1b1f; color: #fff8e1;
+  font-size: 16px; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+.sheet-x::before { content: ""; position: absolute; width: 14px; height: 2px; background: currentColor; transform: rotate(45deg); }
+.sheet-x::after { content: ""; position: absolute; width: 14px; height: 2px; background: currentColor; transform: rotate(-45deg); }
+.sheet-x { color: transparent; }   /* the glyph is hidden; the two drawn strokes are the X, dead centre */
+.sheet-x::before, .sheet-x::after { color: #fff8e1; background: #fff8e1; }
+.sheet-x:hover { background: #d0393e; }
+.note.full { position: static; width: auto; transform: rotate(var(--rot)); padding: 18px 20px 14px; overflow: visible; }
+
+/* tidy: every note straight, for whoever needs the page to hold still */
+body.tidy .note, body.tidy .pile .card-note, body.tidy .pile .card-note:hover { transform: none; }
+body.tidy .fridge:hover { transform: none; }
+
+/* the scrollbars: a quiet pill, no arrows, so a scrolling note does not look like a spreadsheet */
+.kitchen *, .open-inside *, .sheet-dlg *, .leave-dlg *, .drawer-inside, #sheetFull, .sheet-list { scrollbar-width: thin; scrollbar-color: #8f7c62 transparent; }
+#sheetFull::-webkit-scrollbar, .note::-webkit-scrollbar, .drawer-inside::-webkit-scrollbar, .leave-dlg *::-webkit-scrollbar, .open-inside *::-webkit-scrollbar { width: 8px; height: 8px; }
+#sheetFull::-webkit-scrollbar-thumb, .note::-webkit-scrollbar-thumb, .drawer-inside::-webkit-scrollbar-thumb, .leave-dlg *::-webkit-scrollbar-thumb, .open-inside *::-webkit-scrollbar-thumb { background: #8f7c62; border-radius: 8px; }
+#sheetFull::-webkit-scrollbar-track, .note::-webkit-scrollbar-track, .leave-dlg *::-webkit-scrollbar-track { background: transparent; }
+#sheetFull::-webkit-scrollbar-button, .note::-webkit-scrollbar-button, .leave-dlg *::-webkit-scrollbar-button { display: none; height: 0; }
+
+/* a pin that is food */
+.pin.food { background: none; box-shadow: none; font-size: 15px; line-height: 1; top: -10px; }
+/* every door at once */
+.fridge .door { transform-origin: right center; transition: transform .7s cubic-bezier(.2,.8,.2,1); }
+.fridge .door.swing { transform: perspective(600px) rotateY(-70deg); }
+body.tidy .fridge .door.swing { transform: none; }
+
+/* the house: settings */
+.grid.settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: var(--gap); }
+.grid.settings .card.wide { grid-column: 1 / -1; }
+.grid.settings .card h3 { margin: 0 0 8px; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-dim); }
+.grid.settings .card h4 { margin: 14px 0 6px; font-size: 12px; color: var(--text-dim); }
+.grid.settings input:not([type=checkbox]):not([type=color]):not([type=file]), .grid.settings select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font: inherit; }
+.grid.settings input[type=color] { width: 36px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: none; }
+.grid.settings .row { flex-wrap: wrap; }
+.grid.settings .lab { min-width: 64px; }
+.fridge-row { border-bottom: 1px solid var(--border); padding: 4px 0; }
+.fridge-row .ghost { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0 3px; }
+.fridge-row .ghost:hover { color: var(--text); }
+.fridge-add input { min-width: 120px; }
+#ghToken { flex: 1; min-width: 200px; }
+
+/* the one line of orientation under the counter */
+.kitchen .about { font-family: var(--f-hand); font-size: 15px; color: #6b6356; margin: 12px 2px 0; line-height: 1.35; padding-bottom: 10px; }
+.note.full h4 { font-size: 26px; margin: 4px 0 8px; }
+.note.full .who, .note.reply .who { font-size: 12px; opacity: .6; font-family: var(--f-hand); }
+.note.full .body { font-size: 16px; max-height: none; line-height: 1.3; }
+.note.full li { font-size: 16px; margin: 3px 0; }
+.note.full li.choice { list-style: "? "; }
+.note .picked { font-family: var(--f-hand); font-size: 14px; color: #2f6b3a; margin-left: 6px; }
+.note .acts.choices button { background: #fff; color: var(--ink); border: 1px solid #999; }
+.note .acts.main { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #c9b79a; }
+.note .answers { margin: 4px 0 6px 18px; display: flex; flex-direction: column; gap: 6px; }
+.note .replies { margin: 12px 0 0; padding-top: 8px; border-top: 1px dashed #c9b79a; display: flex; flex-direction: column; gap: 8px; }
+.note.reply { position: static; width: auto; transform: rotate(var(--rot)); background: #fffdf3; box-shadow: 0 1px 3px rgba(0,0,0,.25); padding: 8px 10px 6px; }
+.note.reply h4 { font-size: 17px; margin: 2px 0 4px; }
+.note .pin.small { width: 10px; height: 10px; top: -5px; }
+
+/* pictures never shrunk: as wide as the sheet, as tall as they are; more than one makes a little gallery */
+.gallery { position: relative; margin: 6px 0 10px; }
+.gallery figure { display: none; margin: 0; position: relative; }
+.gallery figure.on { display: block; }
+.gallery img { display: block; width: 100%; height: auto; border: 5px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); background: #eee; box-sizing: border-box; }
+.gallery .drop-art { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.55); color: #fff; border-radius: 50%; width: 22px; height: 22px; line-height: 20px; text-align: center; }
+.gallery .gal-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 44px; border: none; border-radius: 6px; background: rgba(0,0,0,.45); color: #fff; font-size: 24px; cursor: pointer; }
+.gallery .gal-btn.prev { left: 10px; } .gallery .gal-btn.next { right: 10px; }
+.gallery .gal-dots { display: flex; gap: 6px; justify-content: center; margin-top: 6px; }
+.gallery .gal-dots span { width: 8px; height: 8px; border-radius: 50%; background: #c9b79a; } .gallery .gal-dots span.on { background: var(--ink); }
+.leave-dlg input[type=file] { flex: 0 1 auto; max-width: 260px; }
+.lab { color: var(--text-dim); font-size: 13px; min-width: 60px; }
+.row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.msg { font-size: 12px; min-height: 16px; } .msg.bad { color: var(--danger); } .msg.ok { color: var(--ok); }
+.tiny { font-size: 12px; }
+.sheet-list { display: flex; flex-wrap: wrap; gap: 12px; }
+.sheet-list .note { position: static; width: 220px; transform: rotate(var(--rot)); }
+.sheet-list .note .where { font-size: 11px; opacity: .6; font-family: var(--mono); }
+.head-pill { cursor: default; } #pillMe { cursor: pointer; }
+@media (max-width: 760px) { .open { grid-template-columns: 1fr; } .open-door { max-width: 300px; } }

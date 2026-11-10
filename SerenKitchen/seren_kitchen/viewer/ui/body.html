@@ -1,0 +1,151 @@
+<section class="view" id="wall">
+  <div class="kitchen">
+    <div class="big" id="big">
+      <div class="bigfreezer">
+        <h1 id="bigTitle">The Kitchen</h1>
+        <div class="sub" id="bigSub"></div>
+        <div class="handle big-handle"></div>
+        <button class="dispenser big-dispenser" id="freezerNow" title="Read GitHub for every fridge now"><span class="chute"></span><span class="lever">ICE · POLL ALL</span></button>
+        <div class="fznotes" id="fzNotes"></div>
+        <button class="small fz-leave" id="houseLeave" title="Leave a note on the house">leave a note on the house</button>
+      </div>
+      <div class="bigdoor">
+        <div class="handle big-handle door"></div>
+        <div class="housenotes" id="houseNotes"></div>
+        <div class="polaroids" id="room"><p class="muted">Looking at the wall…</p></div>
+      </div>
+    </div>
+    <div class="counter">
+      <div class="counter-top"></div>
+      <div class="counter-things">
+        <div id="counterMagnets" class="counter-magnets" title="Magnets not on any fridge"></div>
+        <div class="cheese" id="cheese" title="the last slice">🧀</div>
+      </div>
+    </div>
+    <p class="about">a fridge per app. a magnet on a fridge is who holds that repo right now, so a session that only
+      talks needs no magnet. a sheet is a note, not a task: a thank-you is as welcome as a honey-do. the leftovers
+      are what got done. pull the drawer.</p>
+  </div>
+</section>
+
+<section class="view" id="fridge">
+  <div id="fridgeEmpty" class="no-fridge" title="back to the wall">
+    <div class="ghost-fridge">
+      <div class="gfreezer"><div class="gname">NO FRIDGE OPEN</div><div class="gfacts">PICK ONE ON THE WALL</div></div>
+      <div class="gbox"><div class="bulb"></div><div class="gshelf s1"></div><div class="gshelf s2"></div><div class="gshelf s3"></div>
+        <div class="gdoor"><div class="ghandle"></div><p class="hand">nothing in here but the light.<br>click a fridge on the wall, or pull this handle.</p></div></div>
+    </div>
+  </div>
+  <div class="open" id="open" hidden>
+    <div class="open-bar">
+      <button class="primary" id="oLeave">Leave a note</button>
+      <span class="held tiny muted" id="oHeld"></span>
+      <span class="spacer"></span>
+      <button class="small" id="oBack" title="back to the wall">← the wall</button>
+    </div>
+    <div class="open-door">
+      <div class="freezer big">
+        <div class="name" id="oName"></div>
+        <div id="oFacts"></div>
+        <div class="handle"></div>
+      </div>
+      <div class="door big" id="oDoor"></div>
+    </div>
+    <div class="open-inside">
+      <div class="shelf" data-place="door"><h4>On the door</h4><div class="shelf-items" id="oDoorList"></div></div>
+      <div class="shelf" data-place="shelf"><h4>Top shelf · the lists</h4><div class="shelf-items" id="oShelf"></div></div>
+      <div class="shelf" data-place="waiting"><h4>Middle shelf · waiting on someone</h4><div class="shelf-items" id="oDecisions"></div></div>
+      <div class="shelf crisper" data-place="crisper"><h4>Crisper · art</h4><div class="shelf-items" id="oCrisper"></div></div>
+      <div class="drawer" id="oDrawer">
+        <button class="drawer-front" id="oDrawerPull" title="pull the drawer"><span class="drawer-handle"></span><span class="drawer-label">LEFTOVERS</span><span class="drawer-count" id="oDrawerCount"></span></button>
+        <div class="drawer-inside" id="oDrawerInside" hidden><div class="shelf-items" id="oLeftovers"></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="view" id="decisions">
+  <div class="card">
+    <h3>Waiting on someone</h3>
+    <p class="muted tiny">Every sheet with a pick nobody has made, oldest first. Pick straight from here. Left too long, it goes sour.</p>
+    <div id="decisionList" class="sheet-list"></div>
+  </div>
+</section>
+
+<section class="view" id="leftovers">
+  <div class="card">
+    <h3>Leftovers</h3>
+    <p class="muted tiny">What got done, newest first. Still on the fridge it was left on, just at the bottom.</p>
+    <div id="leftoverList" class="sheet-list"></div>
+  </div>
+</section>
+
+<section class="view" id="settings">
+  <div class="grid settings">
+    <div class="card">
+      <h3>Fonts</h3>
+      <p class="muted tiny">Each house's own. Upload a TTF, OTF or WOFF; nothing here ships with the kitchen. Blank falls back to the yaml, then to system fonts.</p>
+      <div id="fontRows"></div>
+      <h4>Hands: one per author</h4>
+      <p class="muted tiny">A sheet signed with this name is drawn in this hand. Everyone else gets the hand above.</p>
+      <div id="handRows"></div>
+      <div class="row"><input id="newHandName" placeholder="author, e.g. alex" maxlength="40"><input id="newHandFile" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"><button id="newHandGo">add a hand</button></div>
+      <div class="msg" id="fontMsg"></div>
+    </div>
+
+    <div class="card">
+      <h3>The freezer · GitHub</h3>
+      <p class="muted tiny">The freezer reads each fridge's latest release and build from GitHub. Without a token GitHub allows 60 calls an hour; a read-only token lifts that to 5000. It is written to a file in the state folder and never shown again.</p>
+      <div class="row"><span class="lab">Token</span><input id="ghToken" type="password" placeholder="paste a GitHub token; blank forgets it" autocomplete="off"><button id="ghTokenGo">save</button></div>
+      <div class="row"><span class="lab">Status</span><span class="tiny" id="ghStatus">…</span></div>
+      <div class="row"><span class="lab">Every</span><input id="ghInterval" type="number" min="1" max="1440" style="width:80px"><span class="lab">minutes</span>
+        <label class="row" style="margin:0 0 0 12px"><input type="checkbox" id="ghEnabled"> <span class="lab">on</span></label><button id="ghGo">save</button></div>
+      <div class="msg" id="ghMsg"></div>
+    </div>
+
+    <div class="card">
+      <h3>Whose house</h3>
+      <p class="muted tiny">The names the page puts on "to the person" and "to the partner".</p>
+      <div class="row"><span class="lab">Person</span><input id="housePerson" maxlength="40" placeholder="the person"></div>
+      <div class="row"><span class="lab">Partner</span><input id="housePartner" maxlength="40" placeholder="the partner"></div>
+      <div class="row"><span class="lab">Milk</span><input id="sourDays" type="number" min="0" step="0.5" style="width:80px"><span class="lab">days before an unpicked choice goes sour</span></div>
+      <div class="row"><span class="lab">Notes</span><select id="houseNotesAt"><option value="top">the house's notes above the fridges</option><option value="bottom">below the fridges</option></select></div>
+      <div class="row"><span class="lab">Hinge</span><select id="houseHinge"><option value="right">handles on the right (for a left hand)</option><option value="left">handles on the left (for a right hand)</option></select></div>
+      <div class="row"><button id="houseGo">save</button><span class="msg" id="houseMsg"></span></div>
+    </div>
+
+    <div class="card wide">
+      <h3>The fridges</h3>
+      <p class="muted tiny">Colour, name, repo. Hide one to take it off the wall (its sheets wait). The arrows set the order.</p>
+      <div id="fridgeRows"></div>
+      <h4>Add a fridge</h4>
+      <div class="row fridge-add"><input id="nfName" placeholder="slug, e.g. my-thing" maxlength="40"><input id="nfDisplay" placeholder="Display name" maxlength="40"><input id="nfGroup" placeholder="group" value="other" maxlength="20"><input id="nfAccent" type="color" value="#7fd1c1"><input id="nfRepo" placeholder="owner/repo (optional)" maxlength="120"><button id="nfGo">add</button></div>
+      <div class="msg" id="fridgeMsg"></div>
+    </div>
+  </div>
+</section>
+
+<dialog id="leaveDlg" class="leave-dlg">
+  <h3 id="lvHead">Leave a note</h3>
+  <div id="lvParent" class="parent"></div>
+  <label class="row"><span class="lab">Kind</span>
+    <select id="lvKind">
+      <option value="now">honey-do now (door)</option>
+      <option value="list">honey-do list (shelf)</option>
+      <option value="person" id="optPerson">to the person (door)</option>
+      <option value="other" id="optOther">to the partner (door)</option>
+      <option value="self">to self (door)</option>
+      <option value="art">art (crisper)</option>
+      <option value="decision">decision (door, goes sour)</option>
+    </select></label>
+  <label class="row"><span class="lab">Title</span><input id="lvTitle" placeholder="optional: the first line of the note stands in" maxlength="120"></label>
+  <label class="row top"><span class="lab">Note</span><textarea id="lvBody" rows="3" placeholder="just a note. a thank you. whatever it is."></textarea></label>
+  <label class="row top"><span class="lab">List</span><textarea id="lvLines" rows="4" placeholder="optional, one per line. a line that ends  ? yes | no | later  is a choice to pick"></textarea></label>
+  <label class="row"><span class="lab">Pictures</span><input id="lvArt" type="file" multiple accept="image/png,image/jpeg,image/gif,image/webp"><span class="tiny muted">optional, 8 MB each. macaroni welcome.</span></label>
+  <div class="row"><button class="primary" id="lvGo">Stick it on</button><button id="lvCancel">never mind</button><span class="msg" id="lvMsg"></span></div>
+</dialog>
+
+<dialog id="sheetDlg" class="sheet-dlg">
+  <button class="sheet-x" id="sheetClose" title="close">✕</button>
+  <div id="sheetFull"></div>
+</dialog>
