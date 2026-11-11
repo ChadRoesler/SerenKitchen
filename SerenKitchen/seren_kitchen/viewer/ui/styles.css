@@ -32,6 +32,15 @@
 .magnet img, .magnet .blank { width: 100%; height: 100%; border-radius: 50%; display: block; background: #d9b382; object-fit: cover; }
 .magnet .blank { display: flex; align-items: center; justify-content: center; font-family: var(--f-hand); font-size: 18px; color: var(--ink); }
 .magnet.counter { position: static; display: inline-block; margin: 0 6px; }
+/* a magnet whose session ended fades; one gone past the milk days is the carton on the milk: a face nobody has seen in a while */
+.magnet.ended img, .magnet.ended .blank { filter: grayscale(.8) opacity(.75); }
+.magnet.missing img, .magnet.missing .blank { filter: grayscale(1) opacity(.5); }
+.magnet.missing::before { content: "?"; position: absolute; top: -6px; right: -4px; width: 16px; height: 16px; border-radius: 50%; background: #d0393e; color: #fff8e1;
+  font: 700 11px/16px var(--mono); text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.magnet.live { box-shadow: 0 0 0 2px #34914d, 0 2px 4px rgba(0,0,0,.35); }
+/* a hand's name under the face, when a partner has more than one magnet on the board */
+.magnet .tag { position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; line-height: 14px;
+  background: #1b1b1f; color: #fff8e1; padding: 0 6px; border-radius: 7px; white-space: nowrap; max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
 .note { position: absolute; left: var(--x); top: var(--y); width: 150px; background: var(--paper); padding: 10px 10px 8px; transform: rotate(var(--rot));
   box-shadow: 0 2px 5px rgba(0,0,0,.25); border-radius: 2px; color: var(--ink); z-index: 2; }
 .note h4 { margin: 0 0 4px; font-weight: 400; font-size: 17px; line-height: 1.05; font-family: var(--f-hand); color: var(--ink); text-transform: none; letter-spacing: 0; }
@@ -225,12 +234,18 @@ button.small { font-size: 12px; padding: 3px 9px; }
 .dispenser.pressed .chute::after { content: "🧊"; font-size: 12px; display: block; text-align: center; animation: drop .6s ease-in; }
 @keyframes drop { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(6px); opacity: 1; } }
 
-/* the sheet, full size, in its own dialog. the dialog scrolls; the note itself does not, so its pin is never cut off */
-.sheet-dlg { background: transparent; border: none; padding: 0; width: min(760px, 94vw); max-height: 92vh; overflow: visible; }
+/* the sheet, full size, in its own dialog. one scrollbar only, on the paper itself, so it tilts with the note;
+   the pin sits outside the scrolling part and is never cut off; the tilt is kept small here so no corner
+   runs off the screen, and the dialog has room around the paper for the corners that do stick out */
+.sheet-dlg { background: transparent; border: none; padding: 0; width: min(720px, 90vw); max-height: 94vh; overflow: visible; }
 .sheet-dlg::backdrop { background: rgba(0,0,0,.6); }
-#sheetFull { max-height: 88vh; overflow: auto; padding: 22px 28px 28px; }
-.sheet-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; color: #ddd; }
-.sheet-top .tiny { font-family: var(--f-hand); color: #e8e0cc; font-size: 15px; }
+#sheetFull { overflow: visible; padding: 22px 36px 30px; }
+.sheet-top { display: flex; align-items: center; gap: 10px; margin: 0 0 12px 6px; color: #ddd; }
+/* the 'where' line is a strip of masking tape, not words floating in the dark */
+.sheet-top .tiny { font-family: var(--f-hand); color: #2b2622; font-size: 16px; background: rgba(236,226,200,.92); padding: 3px 16px;
+  border-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,.45); transform: rotate(-1.2deg); display: inline-block; }
+.sheet-dlg .note.full .paper { max-height: 66vh; overflow: auto; padding-right: 8px; margin-right: -6px; }
+.sheet-dlg .note.full .body { max-height: none; overflow: visible; }   /* the paper scrolls; the note inside it does not */
 .sheet-x { position: absolute; top: -6px; right: -6px; z-index: 10; width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff8e1; background: #1b1b1f; color: #fff8e1;
   font-size: 16px; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
 .sheet-x::before { content: ""; position: absolute; width: 14px; height: 2px; background: currentColor; transform: rotate(45deg); }
@@ -238,7 +253,7 @@ button.small { font-size: 12px; padding: 3px 9px; }
 .sheet-x { color: transparent; }   /* the glyph is hidden; the two drawn strokes are the X, dead centre */
 .sheet-x::before, .sheet-x::after { color: #fff8e1; background: #fff8e1; }
 .sheet-x:hover { background: #d0393e; }
-.note.full { position: static; width: auto; transform: rotate(var(--rot)); padding: 18px 20px 14px; overflow: visible; }
+.note.full { position: static; width: auto; transform: rotate(clamp(-1.6deg, var(--rot), 1.6deg)); padding: 18px 20px 14px; overflow: visible; }
 
 /* tidy: every note straight, for whoever needs the page to hold still */
 body.tidy .note, body.tidy .pile .card-note, body.tidy .pile .card-note:hover { transform: none; }

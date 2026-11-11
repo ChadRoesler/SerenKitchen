@@ -33,6 +33,8 @@ function nameTheHouse(k) {
     st.textContent = css;
   }
 }
+// who left it, with the hand when the author has more than one on the board
+function byLine(s) { return (s.author || "someone") + (s.hand ? " · " + s.hand : ""); }
 function authorAttr(s) { return `data-author="${escapeHtml((s.author || "").trim().toLowerCase())}"`; }
 
 function say(id, text, bad) { const m = $(id); if (!m) return; m.textContent = text || ""; m.className = "msg" + (text ? (bad ? " bad" : " ok") : ""); }
@@ -105,7 +107,7 @@ function cardHtml(s, opts = {}) {
   const style = opts.pos ? `--x:${s.x}px;--y:${s.y}px;--rot:${s.rot}deg` : `--rot:${s.rot}deg`;
   return `<div class="note card-note ${s.sour ? "sour" : ""} ${opts.tiny ? "tiny-card" : ""} ${s.done_at ? "finished" : ""}" style="${style}" data-open="${s.id}" ${authorAttr(s)} title="open this sheet">` +
     `${pinHtml(s)}<h4>${escapeHtml(s.title)}</h4>${pic}${note}${first}` +
-    `<div class="by">${escapeHtml(s.author || "someone")}${bits.length ? " · " + escapeHtml(bits.join(" · ")) : ""}${s.sour ? " · gone off" : ""}</div>${where}</div>`;
+    `<div class="by">${escapeHtml(byLine(s))}${bits.length ? " · " + escapeHtml(bits.join(" · ")) : ""}${s.sour ? " · gone off" : ""}</div>${where}</div>`;
 }
 
 // ── the sheet: everything on it, full size ──────────────────────────────────
@@ -133,7 +135,7 @@ function lineHtml(s, ln, i, acts) {
 function replyHtml(r, acts) {
   // a note stuck on a note: smaller, its own paper, who and when up top so a 9am reader knows what it is
   return `<div class="note reply" style="--rot:${r.rot}deg" data-id="${r.id}" ${authorAttr(r)}>${pinHtml(r, "pin small")}` +
-    `<div class="who">${escapeHtml(r.author || "someone")} stuck this on · ${escapeHtml((r.made || "").slice(0, 10))}</div><h4>${escapeHtml(r.title)}</h4>` +
+    `<div class="who">${escapeHtml(byLine(r))} stuck this on · ${escapeHtml((r.made || "").slice(0, 10))}</div><h4>${escapeHtml(r.title)}</h4>` +
     galleryHtml(r) + (r.body ? `<p class="body">${escapeHtml(r.body)}</p>` : "") +
     ((r.lines || []).length ? `<ul>${r.lines.map((ln, i) => lineHtml(r, ln, i, acts)).join("")}</ul>` : "") +
     (acts ? `<div class="acts"><button data-reply="${r.id}">stick a note on</button><button data-down="${r.id}" title="off for good">✕</button></div>` : "") + `</div>`;
@@ -148,16 +150,22 @@ function sheetHtml(s, opts = {}) {
   const sheetReplies = (s.replies || []).filter(r => r.reply_line == null);
   const where = `${escapeHtml(KIND_WORD[s.kind] || s.kind)} on the ${escapeHtml(s.place)} of ${escapeHtml(display(s.fridge))}`;
   return `<div class="note full ${s.sour ? "sour" : ""}" style="--rot:${s.rot}deg" data-id="${s.id}" ${authorAttr(s)}>` +
-    `${pinHtml(s)}` +
-    `<div class="who">${escapeHtml(s.author || "someone")} · ${escapeHtml((s.made || "").slice(0, 10))} · ${where}${s.sour ? " · gone off" : ""}${s.ref ? ` · ${escapeHtml(s.ref)}` : ""}</div>` +
+    `${pinHtml(s)}<div class="paper">` +
+    `<div class="who">${escapeHtml(byLine(s))} · ${escapeHtml((s.made || "").slice(0, 10))} · ${where}${s.sour ? " · gone off" : ""}${s.ref ? ` · ${escapeHtml(s.ref)}` : ""}</div>` +
     `<h4>${escapeHtml(s.title)}</h4>` + galleryHtml(s) + (s.body ? `<p class="body">${escapeHtml(s.body)}</p>` : "") + lines + picked + legacy +
     (acts ? `<div class="acts main">${finish}<button data-reply="${s.id}">stick a note on</button><button data-add-art="${s.id}">add a picture</button><button data-down="${s.id}" title="off the fridge for good">✕</button></div>` : "") +
-    (sheetReplies.length ? `<div class="replies"><div class="tiny dim">stuck on this sheet</div>${sheetReplies.map(r => replyHtml(r, acts)).join("")}</div>` : "") + `</div>`;
+    (sheetReplies.length ? `<div class="replies"><div class="tiny dim">stuck on this sheet</div>${sheetReplies.map(r => replyHtml(r, acts)).join("")}</div>` : "") + `</div></div>`;
 }
 
 function magnetHtml(m, extraClass = "") {
   const face = m.picture ? `<img src="${m.picture}" alt="${escapeHtml(m.partner)}">` : `<div class="blank">${escapeHtml(m.partner.slice(0, 2))}</div>`;
-  return `<div class="magnet ${extraClass}" style="left:${m.x}px;top:${m.y}px" title="${escapeHtml(m.partner)} holds this${m.since ? " since " + m.since.slice(0, 16) : ""}. Click: copy how to start their session." data-partner="${escapeHtml(m.partner)}">${face}</div>`;
+  const who = m.label || m.partner;
+  const tag = m.hand ? `<span class="tag">${escapeHtml(m.hand)}</span>` : "";
+  // a magnet with a session wears its state: live, idle, ended (its session ended), missing (gone past the milk days)
+  const state = m.state ? ` ${m.state}` : "";
+  const tip = `${who} holds this${m.since ? " since " + m.since.slice(0, 16) : ""}` + (m.state ? ` · ${m.state}` : "") +
+    (m.session ? ` · session ${m.session}` : "") + (m.end_reason ? ` (${m.end_reason})` : "") + ". Click: copy how to start their session.";
+  return `<div class="magnet ${extraClass}${state}" style="left:${m.x}px;top:${m.y}px" title="${escapeHtml(tip)}" data-partner="${escapeHtml(who)}">${face}${tag}</div>`;
 }
 
 // ── the wall ─────────────────────────────────────────────────────────────────
@@ -221,13 +229,21 @@ function paintWall() {
   $("counterMagnets").querySelectorAll(".magnet").forEach(el => el.onclick = () => copyStarter(el.dataset.partner));
 }
 
+let WALL_SIG = "";
 async function loadWall() {
-  try { KITCHEN = await api("/api/kitchen"); nameTheHouse(KITCHEN); paintWall(); if (OPEN) await openFridge(OPEN, true); }
+  // the timer lands here every ten seconds: the wall is redrawn only when the kitchen's answer changed, so
+  // nothing under a reader's eye (or an inspector's cursor) is replaced for no reason
+  try {
+    KITCHEN = await api("/api/kitchen");
+    const sig = JSON.stringify(KITCHEN);
+    if (sig !== WALL_SIG) { WALL_SIG = sig; nameTheHouse(KITCHEN); paintWall(); }
+    if (OPEN) await openFridge(OPEN, true);
+  }
   catch (e) { $("room").innerHTML = `<p class="muted">${escapeHtml(why(e))}</p>`; }
 }
 
 function copyStarter(partner) {
-  const m = (KITCHEN.magnets || []).find(m => m.partner === partner);
+  const m = (KITCHEN.magnets || []).find(m => (m.label || m.partner) === partner);
   if (!m) return;
   const text = m.starter || `(no session starter on ${partner}'s magnet yet)`;
   (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(
@@ -241,13 +257,18 @@ function toast(text) {
 }
 
 // ── an open fridge ───────────────────────────────────────────────────────────
-let FRIDGE = null;
+let FRIDGE = null, FRIDGE_SIG = "", SHOWN_SIG = "";
 async function openFridge(name, quiet) {
   OPEN = name;
   let f;
   try { f = await api(`/api/fridges/${encodeURIComponent(name)}`); }
   catch (e) { toast(why(e)); return; }
   FRIDGE = f;
+  // the timer comes through here every ten seconds: if nothing on the fridge changed, nothing is redrawn,
+  // so a reader is not shoved back to the top of whatever they were reading
+  const sig = JSON.stringify(f);
+  if (quiet && sig === FRIDGE_SIG && !$("open").hidden) { repaintShown(); return; }
+  FRIDGE_SIG = sig;
   $("fridgeEmpty").hidden = true; $("open").hidden = false;
   const root = $("open");
   root.style.cssText = fridgeVars(f, 30);
@@ -257,7 +278,7 @@ async function openFridge(name, quiet) {
   $("oDoor").innerHTML = `<div class="handle"></div><div class="magnets">${f.magnets.map(m => magnetHtml(m)).join("")}</div>` +
     f.door.map((s, i) => cardHtml({ ...s, x: 8 + (i % 3) * 14 }, { tiny: false })).join("") +
     (f.door.length ? "" : `<div class="empty">the door is bare.</div>`);
-  $("oHeld").textContent = f.magnets.length ? `held by ${f.magnets.map(m => m.partner).join(", ")}` : "nobody is holding this one";
+  $("oHeld").textContent = f.magnets.length ? `held by ${f.magnets.map(m => (m.label || m.partner) + (m.state && m.state !== "live" ? ` (${m.state})` : "")).join(", ")}` : "nobody is holding this one";
   const all = f.door.concat(f.shelf, f.crisper);
   $("oDoorList").innerHTML = f.door.map(s => cardHtml(s)).join("") || `<span class="tiny muted">the door is bare</span>`;
   $("oShelf").innerHTML = f.shelf.map(s => cardHtml(s)).join("") || `<span class="tiny muted">no lists</span>`;
@@ -274,8 +295,23 @@ async function openFridge(name, quiet) {
   wire(root);
   root.querySelectorAll(".magnet").forEach(el => el.onclick = () => copyStarter(el.dataset.partner));
   if (!quiet) showTab("fridge");
+  repaintShown();
+}
+
+// the open sheet follows the board (a reply lands under it while it is read), but only when it changed,
+// and the paper stays where it was scrolled to
+function repaintShown() {
   if (SHOWN && !$("sheetDlg").open) SHOWN = null;
-  if (SHOWN) { const s = findSheet(SHOWN); if (s) paintSheet(s); }
+  if (!SHOWN) return;
+  const s = findSheet(SHOWN);
+  if (!s) return;
+  const sig = JSON.stringify(s);
+  if (sig === SHOWN_SIG) return;
+  const paper = $("sheetFull").querySelector(".paper");
+  const top = paper ? paper.scrollTop : 0;
+  paintSheet(s);
+  const again = $("sheetFull").querySelector(".paper");
+  if (again) again.scrollTop = top;
 }
 
 function findSheet(id) {
@@ -304,6 +340,7 @@ async function openSheet(id) {
 }
 
 function paintSheet(s) {
+  SHOWN_SIG = JSON.stringify(s);
   const box = $("sheetFull");
   box.innerHTML = `<div class="sheet-top"><span class="tiny">${escapeHtml(display(s.fridge))} · ${escapeHtml(s.place)}</span></div>` + sheetHtml(s);
   wire(box);

@@ -76,6 +76,14 @@ it was for.
 - **A magnet carries a session starter.** Click it and the text that starts
   that partner's session is copied. The board is also the switchboard.
 - **Pictures on magnets are each house's own.** None ship.
+- **A partner can have more than one hand.** Two sessions of the same partner on
+  the board are `ada · carabiner` and `ada · kitchen`: the same name, the same
+  handwriting, the same face until a hand is given its own, but each hand is its
+  own magnet with its own starter, so one sticking to a fridge never yanks the
+  other's claim, and a sheet says which hand left it. Without a hand, a partner
+  is one magnet, as before.
+- **Names compare without case.** A name signed in capitals is the same person as
+  the name in small letters, and is shown as signed.
 
 ## Hands and names
 

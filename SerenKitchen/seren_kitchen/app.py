@@ -306,18 +306,58 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
         """{"partner": "ada", "starter": "the text that starts my session", "picture": "data:image/png;base64,..."}:
         make or update a magnet. The picture is each partner's own; the kitchen ships with none."""
         body = _body(await request.json())
-        return _store(request).set_magnet(str(body.get("partner") or ""), starter=body.get("starter"), picture=body.get("picture"))
+        return _store(request).set_magnet(str(body.get("partner") or ""), hand=str(body.get("hand") or ""), starter=body.get("starter"),
+                                          picture=body.get("picture"))
 
     @app.post("/api/magnets/{partner}/stick")
     async def stick(request: Request, partner: str):
         """{"fridge": "seren-memory", "x": 14, "y": 12}: this partner holds that repo now. {"fridge": null}: off
         the wall, onto the counter."""
         body = _body(await request.json())
-        return _store(request).stick(partner, body.get("fridge"), body.get("x"), body.get("y"))
+        return _store(request).stick(partner, body.get("fridge"), body.get("x"), body.get("y"), hand=str(body.get("hand") or ""))
+
+    def _say(ev: str, m: dict[str, Any]) -> str:
+        """What a hook prints into the session: who the kitchen thinks it is, and what to do about it."""
+        hand = m.get("hand") or ""
+        tools = f'Pass hand="{hand}" on the kitchen tools (kitchen_leave, kitchen_reply, kitchen_tick, kitchen_stick, kitchen_magnet).' if hand \
+            else "You are the one magnet of your name; the kitchen tools need no hand."
+        if ev == "end":
+            return f"The kitchen marked {m['label']} ended" + (f" ({m['end_reason']})" if m.get("end_reason") else "") + ". The magnet stays where it was."
+        if m.get("numbered_from"):
+            head = f"Another live session of {m['partner']} holds {m['numbered_from']}; the kitchen knows this one as {m['label']}."
+        elif m.get("previous") and m.get("source") in ("startup", "resume", "clear", ""):
+            head = f"The kitchen knows this session as {m['label']}, taken over from session {m['previous']}."
+        else:
+            head = f"The kitchen knows this session as {m['label']}."
+        where = f"Your magnet is on {m['fridge']}." if m.get("fridge") else "Your magnet is on the counter: kitchen_stick when you take a repo."
+        return f"{head} {tools} {where}"
+
+    @app.post("/api/sessions")
+    async def sessions(request: Request):
+        """A harness's session hook. {"event": "start", "partner": "ada", "session": "<id>", "cwd": "...", "harness":
+        "claude", "box": "<host>", "source": "startup|resume|clear|compact", "hand": "<optional>"} makes or takes over the
+        hand's magnet (the hand is read off the folder when none is given) and never sticks it; {"event": "end", ...,
+        "reason": "..."} marks the magnet carrying that session ended. Both answer with the label to sign as."""
+        body = _body(await request.json())
+        ev = str(body.get("event") or "").strip().lower()
+        st = _store(request)
+        if ev == "start":
+            m = st.session_start(partner=str(body.get("partner") or ""), session=str(body.get("session") or ""), cwd=str(body.get("cwd") or ""),
+                                 harness=str(body.get("harness") or "claude"), box=str(body.get("box") or ""), source=str(body.get("source") or ""),
+                                 hand=str(body.get("hand") or ""))
+        elif ev == "end":
+            m = st.session_end(partner=str(body.get("partner") or ""), session=str(body.get("session") or ""), reason=str(body.get("reason") or ""),
+                               hand=str(body.get("hand") or ""))
+            if m is None:
+                raise HTTPException(404, "no magnet carries that session")
+        else:
+            raise HTTPException(400, "event is start or end")
+        return {"ok": True, "label": m["label"], "hand": m["hand"], "on": m.get("fridge"), "state": m["state"], "starter": m.get("starter", ""),
+                "say": _say(ev, m)}
 
     @app.delete("/api/magnets/{partner}")
-    async def drop_magnet(request: Request, partner: str):
-        if not _store(request).drop_magnet(partner):
+    async def drop_magnet(request: Request, partner: str, hand: str = ""):
+        if not _store(request).drop_magnet(partner, hand):
             raise HTTPException(404, f"no magnet for {partner!r}")
         return {"ok": True}
 
@@ -347,7 +387,7 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
                                      options=body.get("options"), place=body.get("place"), x=body.get("x"), y=body.get("y"),
                                      rot=body.get("rot"), body=str(body.get("body") or ""), reply_to=body.get("reply_to"),
                                      reply_line=body.get("reply_line"), ref=str(body.get("ref") or ""), made=body.get("made"),
-                                     done=bool(body.get("done")))
+                                     done=bool(body.get("done")), hand=str(body.get("hand") or ""))
 
     @app.post("/api/sheets/{sheet_id}/reply")
     async def reply(request: Request, sheet_id: str):
@@ -359,7 +399,8 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
             raise HTTPException(404, f"no sheet {sheet_id!r}")
         return _store(request).leave(fridge=parent["fridge"], kind=str(body.get("kind") or "other"), title=str(body.get("title") or ""),
                                      lines=body.get("lines"), author=str(body.get("author") or ""), pin=str(body.get("pin") or ""),
-                                     body=str(body.get("body") or ""), reply_to=sheet_id, reply_line=body.get("line"))
+                                     body=str(body.get("body") or ""), reply_to=sheet_id, reply_line=body.get("line"),
+                                     hand=str(body.get("hand") or ""))
 
     @app.patch("/api/sheets/{sheet_id}")
     async def change(request: Request, sheet_id: str):

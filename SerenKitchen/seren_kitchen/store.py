@@ -39,6 +39,26 @@ PLACES = ("door", "shelf", "crisper", "leftovers")
 PLACE_BY_KIND = {"now": "door", "list": "shelf", "person": "door", "self": "door", "other": "door",
                  "art": "crisper", "decision": "door"}
 MAX_PICTURE = 256 * 1024          # a magnet's picture, as a data URL
+
+
+def _label(partner: str, hand: str) -> str:
+    """How a magnet is keyed and shown: the partner, and the hand when there is one."""
+    return f"{partner}·{hand}" if hand else partner
+
+
+def _starter(harness: str, cwd: str, session: str) -> str:
+    """The text copied off a magnet: how to pick that session up again."""
+    head = f"cd {cwd}\n" if cwd else ""
+    if (harness or "claude") == "claude":
+        return head + f"claude --resume {session}"
+    return head + f"# {harness} session {session}"
+
+
+def _epoch(iso: str) -> float:
+    try:
+        return time.mktime(time.strptime(iso[:19], "%Y-%m-%dT%H:%M:%S"))
+    except (ValueError, TypeError):
+        return 0.0
 MAX_TEXT = 4000
 
 # the first sheet in a new kitchen, so the first door is never bare
@@ -111,6 +131,9 @@ class Store:
                 for key in ("facts", "magnets", "sheets"):
                     v = raw.get(key)
                     self._data[key] = v if isinstance(v, dict) else {}
+                # a magnet from before hands is the partner's only hand
+                for m in self._data["magnets"].values():
+                    m.setdefault("hand", ""); m.setdefault("label", m.get("partner", ""))
                 # a sheet's pictures are a list, whatever an older file said
                 for s in self._data["sheets"].values():
                     if isinstance(s.get("art"), str):
@@ -163,7 +186,7 @@ class Store:
                     counts[s.get("place", "door")] += 1
                     if self._is_sour(s):
                         sour += 1
-            holders = [m["partner"] for m in self._data["magnets"].values() if m.get("fridge") == name]
+            holders = [m.get("label") or m["partner"] for m in self._data["magnets"].values() if m.get("fridge") == name]
             out.append({**f, "facts": dict(self._data["facts"].get(name) or {}), "counts": counts, "sour": sour,
                         "held_by": holders})
         return out
@@ -184,22 +207,107 @@ class Store:
 
     # ── magnets ───────────────────────────────────────────────────────────────
     def magnets(self) -> list[dict[str, Any]]:
-        return [dict(m) for m in self._data["magnets"].values()]
+        return [self._magnet_view(m) for m in self._data["magnets"].values()]
 
-    def magnet(self, partner: str) -> Optional[dict[str, Any]]:
-        m = self._data["magnets"].get(partner)
-        return dict(m) if m else None
+    def magnet(self, partner: str, hand: str = "") -> Optional[dict[str, Any]]:
+        m = self._data["magnets"].get(_label(partner, hand))
+        return self._magnet_view(m) if m else None
 
-    def set_magnet(self, partner: str, *, starter: Optional[str] = None, picture: Optional[str] = None) -> dict[str, Any]:
-        partner = (partner or "").strip()
+    # ── sessions on magnets ───────────────────────────────────────────────────
+    def hand_for(self, cwd: str) -> str:
+        """The hand a session in that folder is, when it names none: the fridge whose repo the folder is
+        named after, without the family prefix (SerenCarabiners -> carabiner); else the folder's name."""
+        folder = Path(cwd).name if cwd else ""
+        for f in self._fridges.values():
+            repo = str(f.get("repo") or "")
+            if folder and repo.rsplit("/", 1)[-1].lower() == folder.lower():
+                name = f["name"]
+                return name[6:] if name.startswith("seren-") else name
+        return re.sub(r"[^a-z0-9-]+", "-", folder.lower()).strip("-")[:40]
+
+    def _state(self, m: dict[str, Any]) -> str:
+        """What a magnet with a session is doing: live (seen within the hour), idle (seen within the milk
+        days), ended (its session ended), missing (ended or unseen past the milk days). A magnet made by
+        hand, with no session, has no state."""
+        now = _now()
+        if m.get("ended_at"):
+            return "missing" if now - _epoch(m["ended_at"]) > self.sour_after else "ended"
+        if not m.get("session"):
+            return ""
+        age = now - _epoch(m.get("seen") or m.get("since") or "")
+        return "live" if age < 3600 else ("idle" if age < self.sour_after else "missing")
+
+    def _touch(self, partner: str, hand: str) -> None:
+        """A hand did something on the board: its magnet was seen now."""
+        m = self._data["magnets"].get(_label((partner or "").strip(), (hand or "").strip()[:40]))
+        if m is not None and m.get("session"):
+            m["seen"] = _iso(_now())
+
+    def session_start(self, *, partner: str, session: str, cwd: str = "", harness: str = "claude", box: str = "",
+                      source: str = "", hand: str = "") -> dict[str, Any]:
+        """A session began: the hand's magnet is made or taken over (session, folder and starter replaced,
+        the old id kept as `previous`), never stuck anywhere by this. If another session of the same
+        partner is live under that hand, this one is the next number (carabiner-2)."""
+        partner = (partner or "").strip(); session = (session or "").strip()[:80]
+        if not partner or not session:
+            raise KitchenError("a session needs a partner and a session id")
+        hand = (hand or "").strip()[:40] or self.hand_for(cwd)
+        with self._lock:
+            base = hand
+            for k in range(2, 9):
+                m = self._data["magnets"].get(_label(partner, hand))
+                if m is None or not m.get("session") or m["session"] == session or m.get("ended_at") or self._state(m) != "live":
+                    break
+                hand = f"{base}-{k}"
+            if self._data["magnets"].get(_label(partner, hand)) is None:
+                self.set_magnet(partner, hand=hand)
+            m = self._data["magnets"][_label(partner, hand)]
+            if m.get("session") and m["session"] != session:
+                m["previous"] = m["session"]
+            m.update(session=session, cwd=str(cwd or "")[:300], harness=(harness or "claude")[:20], box=str(box or "")[:60],
+                     source=str(source or "")[:20], seen=_iso(_now()), ended_at=None, end_reason="")
+            m["starter"] = _starter(m["harness"], m["cwd"], session)[:MAX_TEXT]
+            self._save()
+            return {**self._magnet_view(m), "numbered_from": base if hand != base else ""}
+
+    def session_end(self, *, partner: str, session: str, reason: str = "", hand: str = "") -> Optional[dict[str, Any]]:
+        """A session ended: the magnet carrying it is marked ended, with the reason. It stays where it is,
+        saying who was last here. None when no magnet carries that session."""
+        partner = (partner or "").strip(); session = (session or "").strip()[:80]
+        with self._lock:
+            m = None
+            if hand:
+                cand = self._data["magnets"].get(_label(partner, hand.strip()[:40]))
+                if cand is not None and cand.get("session") == session:
+                    m = cand
+            if m is None:
+                m = next((x for x in self._data["magnets"].values() if x.get("partner") == partner and x.get("session") == session), None)
+            if m is None:
+                return None
+            m["ended_at"] = _iso(_now()); m["end_reason"] = str(reason or "")[:40]
+            self._save()
+            return self._magnet_view(m)
+
+    def _magnet_view(self, m: dict[str, Any]) -> dict[str, Any]:
+        return {**m, "state": self._state(m)}
+
+    def set_magnet(self, partner: str, *, hand: str = "", starter: Optional[str] = None, picture: Optional[str] = None) -> dict[str, Any]:
+        """A partner's magnet, or one of them: `hand` tells two of the same partner apart,
+        and each hand is its own magnet with its own starter. A new hand wears the face the partner
+        already has on another magnet, until it is given one."""
+        partner = (partner or "").strip(); hand = (hand or "").strip()[:40]
         if not partner or len(partner) > 40:
             raise KitchenError("a magnet needs a name, forty letters or fewer")
+        key = _label(partner, hand)
         if picture is not None and picture != "":
             if not picture.startswith("data:image/") or len(picture) > MAX_PICTURE:
                 raise KitchenError("the picture is a data URL of an image, under 256 KB")
         with self._lock:
-            m = self._data["magnets"].setdefault(partner, {"partner": partner, "starter": "", "picture": "", "fridge": None,
-                                                        "x": 14, "y": 12, "since": _iso(_now())})
+            m = self._data["magnets"].get(key)
+            if m is None:
+                face = next((x.get("picture") for x in self._data["magnets"].values() if x.get("partner") == partner and x.get("picture")), "")
+                m = self._data["magnets"][key] = {"partner": partner, "hand": hand, "label": key, "starter": "", "picture": face,
+                                                   "fridge": None, "x": 14, "y": 12, "since": _iso(_now())}
             if starter is not None:
                 m["starter"] = str(starter)[:MAX_TEXT]
             if picture is not None:
@@ -207,19 +315,23 @@ class Store:
             self._save()
             return dict(m)
 
-    def stick(self, partner: str, fridge: Optional[str], x: Optional[float] = None, y: Optional[float] = None) -> dict[str, Any]:
+    def stick(self, partner: str, fridge: Optional[str], x: Optional[float] = None, y: Optional[float] = None,
+              hand: str = "") -> dict[str, Any]:
         """Stick a magnet to a fridge (that partner holds that repo now), or take it off (fridge None: it
         sits on the counter). Where it was before is remembered on the magnet as `last`."""
         if fridge is not None:
             self._need_fridge(fridge)
+        key = _label((partner or "").strip(), (hand or "").strip()[:40])
         with self._lock:
-            m = self._data["magnets"].get(partner)
+            m = self._data["magnets"].get(key)
             if m is None:
-                m = self.set_magnet(partner)
-                m = self._data["magnets"][partner]
+                self.set_magnet(partner, hand=hand)
+                m = self._data["magnets"][key]
             if m.get("fridge") != fridge:
                 m["last"] = m.get("fridge")
                 m["since"] = _iso(_now())
+            if m.get("session"):
+                m["seen"] = _iso(_now())
             m["fridge"] = fridge
             if x is not None:
                 m["x"] = float(x)
@@ -228,9 +340,9 @@ class Store:
             self._save()
             return dict(m)
 
-    def drop_magnet(self, partner: str) -> bool:
+    def drop_magnet(self, partner: str, hand: str = "") -> bool:
         with self._lock:
-            gone = self._data["magnets"].pop(partner, None) is not None
+            gone = self._data["magnets"].pop(_label(partner, hand), None) is not None
             if gone:
                 self._save()
             return gone
@@ -271,7 +383,7 @@ class Store:
                 continue
             if place and s.get("place") != place:
                 continue
-            if author and s.get("author") != author:
+            if author and (s.get("author") or "").strip().lower() != author.strip().lower():
                 continue
             if open_only and s.get("done_at"):
                 continue
@@ -283,7 +395,7 @@ class Store:
                pin: str = "", options: Optional[Iterable[str]] = None, place: Optional[str] = None,
                x: Optional[float] = None, y: Optional[float] = None, rot: Optional[float] = None,
                body: str = "", reply_to: Optional[str] = None, reply_line: Optional[int] = None,
-               ref: str = "", made: Optional[str] = None, done: bool = False) -> dict[str, Any]:
+               ref: str = "", made: Optional[str] = None, done: bool = False, hand: str = "") -> dict[str, Any]:
         if reply_to:
             parent = self._data["sheets"].get(reply_to)
             if parent is None:
@@ -316,7 +428,7 @@ class Store:
         s = {"id": sid, "fridge": fridge, "kind": kind, "title": title,
              "lines": ls,
              "body": body, "art": [],
-             "author": (author or "").strip()[:40], "pin": pin or "", "place": place or PLACE_BY_KIND[kind],
+             "author": (author or "").strip()[:40], "hand": (hand or "").strip()[:40], "pin": pin or "", "place": place or PLACE_BY_KIND[kind],
              "x": float(x) if x is not None else 10 + (n * 37) % 45, "y": float(y) if y is not None else 60 + (n * 53) % 120,
              "rot": float(rot) if rot is not None else -4 + (n * 7) % 9,
              "made": str(made)[:19] if made else _iso(t), "made_t": t, "updated": _iso(t), "done_at": None,
@@ -332,6 +444,8 @@ class Store:
     def leave(self, **kw: Any) -> dict[str, Any]:
         with self._lock:
             s = self._leave(**kw)
+            if kw.get("hand"):
+                self._touch(kw.get("author", ""), kw["hand"])
             self._save()
             return self._view(s)
 
