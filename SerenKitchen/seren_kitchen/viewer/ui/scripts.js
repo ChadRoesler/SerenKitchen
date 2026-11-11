@@ -2,7 +2,8 @@
 // Every sheet is drawn as a CARD (a title, a line of its note, how much is on it,
 // its first picture); clicking a card opens the SHEET: everything on it, full size,
 // with the lines to tick, the choices to pick, and the notes stuck on it, each one
-// drawn under the line it answers. The wall refreshes every 10 s.
+// drawn under the line it answers. The wall and the open fridge are watched every 10 s
+// through the shell's watch(): repainted only when the answer changed, quiet while hidden.
 const $ = id => document.getElementById(id);
 const INK_DARK = "#1b1b1f", INK_LIGHT = "#fffaf0";
 let KITCHEN = null, OPEN = null, CHEESE = 0, REPLY_TO = null, SHOWN = null, GALLERY = null;
@@ -229,17 +230,24 @@ function paintWall() {
   $("counterMagnets").querySelectorAll(".magnet").forEach(el => el.onclick = () => copyStarter(el.dataset.partner));
 }
 
-let WALL_SIG = "";
+// ── the polling pair, from the Meninges shell (>= 6.2.0) ─────────────────────
+// watch() asks every ten seconds and calls paint only when the answer changed, so nothing under a reader's
+// eye (or an inspector's cursor) is replaced for no reason; nothing is asked while the tab is hidden, and one
+// round runs the moment it is shown. The same mechanism every viewer in the family uses, not a copy of it.
+let WALL = null, FRIDGE_W = null, FRIDGE_BAD = false;
+function startWatching() {
+  WALL = watch("/api/kitchen", 10000, k => { KITCHEN = k; nameTheHouse(k); paintWall(); repaintShown(); },
+    { whileVisible: true, onError: e => { $("room").innerHTML = `<p class="muted">${escapeHtml(why(e))}</p>`; } });
+  // the open fridge is a question that moves: a falsy path sits the round out while no fridge is open, and the
+  // path is part of the answer's signature, so a different fridge with the same JSON still repaints
+  FRIDGE_W = watch(() => OPEN && `/api/fridges/${encodeURIComponent(OPEN)}`, 10000, f => { FRIDGE_BAD = false; paintFridge(f); },
+    { whileVisible: true, onError: e => { FRIDGE_BAD = true; toast(why(e)); } });
+}
+// after a POST: ask again now, the wall and the open fridge, and resolve once answers asked after the POST are in
 async function loadWall() {
-  // the timer lands here every ten seconds: the wall is redrawn only when the kitchen's answer changed, so
-  // nothing under a reader's eye (or an inspector's cursor) is replaced for no reason
-  try {
-    KITCHEN = await api("/api/kitchen");
-    const sig = JSON.stringify(KITCHEN);
-    if (sig !== WALL_SIG) { WALL_SIG = sig; nameTheHouse(KITCHEN); paintWall(); }
-    if (OPEN) await openFridge(OPEN, true);
-  }
-  catch (e) { $("room").innerHTML = `<p class="muted">${escapeHtml(why(e))}</p>`; }
+  if (!WALL) return;
+  await WALL.check();
+  if (OPEN) await FRIDGE_W.check();
 }
 
 function copyStarter(partner) {
@@ -257,18 +265,19 @@ function toast(text) {
 }
 
 // ── an open fridge ───────────────────────────────────────────────────────────
-let FRIDGE = null, FRIDGE_SIG = "", SHOWN_SIG = "";
+let FRIDGE = null, SHOWN_SIG = "";
+// open a fridge: it is the watch's question from here on, and its first answer is waited for. `quiet` is a
+// refresh behind the scenes (a sheet opened off the freezer, a fridge named in the hash): no tab switch.
 async function openFridge(name, quiet) {
   OPEN = name;
-  let f;
-  try { f = await api(`/api/fridges/${encodeURIComponent(name)}`); }
-  catch (e) { toast(why(e)); return; }
+  await FRIDGE_W.check();
+  if (!quiet && !FRIDGE_BAD) showTab("fridge");
+}
+
+// the fridge's paint: watch() calls it only when the fridge's answer changed, so a reader is not shoved back
+// to the top of whatever they were reading every ten seconds
+function paintFridge(f) {
   FRIDGE = f;
-  // the timer comes through here every ten seconds: if nothing on the fridge changed, nothing is redrawn,
-  // so a reader is not shoved back to the top of whatever they were reading
-  const sig = JSON.stringify(f);
-  if (quiet && sig === FRIDGE_SIG && !$("open").hidden) { repaintShown(); return; }
-  FRIDGE_SIG = sig;
   $("fridgeEmpty").hidden = true; $("open").hidden = false;
   const root = $("open");
   root.style.cssText = fridgeVars(f, 30);
@@ -294,7 +303,6 @@ async function openFridge(name, quiet) {
   $("oLeave").textContent = `Leave a note on ${f.display}`;
   wire(root);
   root.querySelectorAll(".magnet").forEach(el => el.onclick = () => copyStarter(el.dataset.partner));
-  if (!quiet) showTab("fridge");
   repaintShown();
 }
 
@@ -305,13 +313,10 @@ function repaintShown() {
   if (!SHOWN) return;
   const s = findSheet(SHOWN);
   if (!s) return;
-  const sig = JSON.stringify(s);
-  if (sig === SHOWN_SIG) return;
-  const paper = $("sheetFull").querySelector(".paper");
-  const top = paper ? paper.scrollTop : 0;
-  paintSheet(s);
-  const again = $("sheetFull").querySelector(".paper");
-  if (again) again.scrollTop = top;
+  // this signature is of data the page already holds, not of a url, so the comparison stays here; the scroll
+  // half is the shell's: the selector, since paintSheet replaces the paper and the new one is found afterwards
+  if (JSON.stringify(s) === SHOWN_SIG) return;
+  keepingScroll("#sheetFull .paper", () => paintSheet(s));
 }
 
 function findSheet(id) {
@@ -619,8 +624,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const m = /fridge=([\w-]+)/.exec(location.hash || ""); if (m) openFridge(m[1]);
     const s = /sheet=([0-9a-f]{12})/.exec(location.hash || ""); if (s) openSheet(s[1]);
   };
-  loadWall().then(fromHash);
+  startWatching();                                           // the first rounds are asked at once
+  fromHash();                                                // a fridge in the hash becomes the fridge watch's question
   window.addEventListener("hashchange", fromHash);
   loadLists();
-  setInterval(loadWall, 10000);
 });

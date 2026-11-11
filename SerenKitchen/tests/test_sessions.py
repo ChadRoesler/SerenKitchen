@@ -60,3 +60,40 @@ def test_the_hook_route_and_the_state_on_the_wall(tmp_path):
         # a magnet made by hand, with no session, has no state
         c.post("/api/magnets", json={"partner": "ada", "hand": "kitchen"})
         assert next(x for x in c.get("/api/magnets").json() if x["hand"] == "kitchen")["state"] == ""
+
+
+def test_the_folder_is_read_whichever_box_wrote_the_path():
+    # the kitchen on Linux was handed Windows paths and named a hand after the whole thing (10 Nov 2026)
+    from seren_kitchen.store import _folder
+    assert _folder("D:\\work\\SerenCarabiners") == _folder("/home/x/SerenCarabiners/") == _folder("D:/work\\SerenCarabiners") == "SerenCarabiners"
+    assert _folder("") == "" and _folder("D:\\") == "D:"
+    st = Store(__import__("pathlib").Path(__import__("tempfile").mkdtemp()) / "k.json", FRIDGES)
+    assert st.hand_for("C:\\git\\SerenMemory") == "memory" and st.hand_for("D:\\serenDaemon\\SerenCore") == "serencore"
+
+
+def test_a_session_resumed_from_another_folder_keeps_its_magnet(tmp_path):
+    st = Store(tmp_path / "k.json", FRIDGES)
+    st.session_start(partner="ada", session="s-1", cwd="D:\\work\\SerenCarabiners", box="desk")
+    st.stick("ada", "seren-carabiner", hand="carabiner")
+    m = st.session_start(partner="ada", session="s-1", cwd="D:\\work", box="desk", source="resume")   # resumed from the parent folder
+    assert m["hand"] == "carabiner" and m["fridge"] == "seren-carabiner" and len(st.magnets()) == 1 and "previous" not in m
+    assert m["starter"] == "cd D:\\work\nclaude --resume s-1"
+    # a hand named on the call still wins
+    assert st.session_start(partner="ada", session="s-1", cwd="D:\\work", hand="spare")["hand"] == "spare"
+
+
+def test_an_end_ends_every_carrier_and_a_clear_keeps_the_seat(tmp_path):
+    st = Store(tmp_path / "k.json", FRIDGES)
+    st.session_start(partner="ada", session="s-1", cwd="D:\\work", box="desk", hand="kitchen")
+    st.stick("ada", "seren-project", hand="kitchen")
+    st.set_magnet("ada", hand="work"); st._data["magnets"]["ada·work"]["session"] = "s-1"      # an older kitchen left two
+    m = st.session_end(partner="ada", session="s-1", reason="clear")
+    assert m["label"] == "ada·kitchen" and all(x["state"] == "ended" for x in st.magnets())      # the one on a fridge answers
+    # the start that follows a /clear sits in the same folder on the same box: same seat, new transcript
+    m = st.session_start(partner="ada", session="s-2", cwd="D:\\work", box="desk", source="clear")
+    assert m["hand"] == "kitchen" and m["previous"] == "s-1" and m["state"] == "live" and m["fridge"] == "seren-project"
+    assert len(st.magnets()) == 2
+    # a clear from another box, or plain startup, in that folder is a stranger: it reads the folder
+    assert st.session_start(partner="ada", session="s-3", cwd="D:\\work", box="laptop", source="clear")["hand"] == "work"
+    st.session_end(partner="ada", session="s-2", reason="clear")
+    assert st.session_start(partner="ada", session="s-4", cwd="D:\\work", box="desk", source="startup")["hand"] == "work-2"

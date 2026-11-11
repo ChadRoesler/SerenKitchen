@@ -60,6 +60,15 @@ def _epoch(iso: str) -> float:
     except (ValueError, TypeError):
         return 0.0
 MAX_TEXT = 4000
+CLEAR_WINDOW = 300.0              # seconds: a /clear's end and the start that follows it are a second apart; this is slack
+
+
+def _folder(cwd: str) -> str:
+    """The last part of a folder path, whichever box wrote it. A Windows path arriving at a kitchen on Linux has
+    backslashes that pathlib there does not split (10 Nov 2026: a hand named d-serendaemon-serencore-serenmeninges,
+    the whole path, and a second magnet for a session that had one)."""
+    parts = [p for p in re.split(r"[\\/]+", str(cwd or "")) if p]
+    return parts[-1] if parts else ""
 
 # the first sheet in a new kitchen, so the first door is never bare
 HOUSEWARMING = {"fridge": "seren-kitchen", "kind": "person", "title": "the fridge is ours.",
@@ -217,7 +226,7 @@ class Store:
     def hand_for(self, cwd: str) -> str:
         """The hand a session in that folder is, when it names none: the fridge whose repo the folder is
         named after, without the family prefix (SerenCarabiners -> carabiner); else the folder's name."""
-        folder = Path(cwd).name if cwd else ""
+        folder = _folder(cwd)
         for f in self._fridges.values():
             repo = str(f.get("repo") or "")
             if folder and repo.rsplit("/", 1)[-1].lower() == folder.lower():
@@ -247,12 +256,28 @@ class Store:
                       source: str = "", hand: str = "") -> dict[str, Any]:
         """A session began: the hand's magnet is made or taken over (session, folder and starter replaced,
         the old id kept as `previous`), never stuck anywhere by this. If another session of the same
-        partner is live under that hand, this one is the next number (carabiner-2)."""
+        partner is live under that hand, this one is the next number (carabiner-2).
+
+        When no hand is named: a session the kitchen already knows keeps its magnet, from whatever folder
+        it was resumed in (the kitchen hand resumed from the parent folder is still the kitchen hand); and a
+        start that Claude Code calls `clear` is the same seat with a new transcript, so it takes the magnet
+        whose session just ended that way in this folder on this box. Only then is the hand read off the
+        folder."""
         partner = (partner or "").strip(); session = (session or "").strip()[:80]
         if not partner or not session:
             raise KitchenError("a session needs a partner and a session id")
-        hand = (hand or "").strip()[:40] or self.hand_for(cwd)
+        hand = (hand or "").strip()[:40]
         with self._lock:
+            if not hand:
+                mine = [x for x in self._data["magnets"].values() if x.get("partner") == partner]
+                found = next((x for x in mine if x.get("session") == session), None)
+                if found is None and (source or "").strip().lower() == "clear":
+                    now = _now()
+                    cleared = [x for x in mine if x.get("ended_at") and x.get("end_reason") == "clear"
+                               and now - _epoch(x["ended_at"]) < CLEAR_WINDOW and x.get("cwd") == str(cwd or "")[:300]
+                               and (not box or not x.get("box") or x.get("box") == str(box or "")[:60])]
+                    found = max(cleared, key=lambda x: x["ended_at"]) if cleared else None
+                hand = found.get("hand", "") if found is not None else self.hand_for(cwd)
             base = hand
             for k in range(2, 9):
                 m = self._data["magnets"].get(_label(partner, hand))
@@ -271,21 +296,22 @@ class Store:
             return {**self._magnet_view(m), "numbered_from": base if hand != base else ""}
 
     def session_end(self, *, partner: str, session: str, reason: str = "", hand: str = "") -> Optional[dict[str, Any]]:
-        """A session ended: the magnet carrying it is marked ended, with the reason. It stays where it is,
-        saying who was last here. None when no magnet carries that session."""
+        """A session ended: every magnet carrying it is marked ended, with the reason (an older kitchen could
+        leave one session on two magnets; marking the first and leaving the other live made the /clear that
+        followed a numbered stranger, 10 Nov 2026). They stay where they are, saying who was last here. The
+        one answered is the named hand's, else one on a fridge. None when no magnet carries that session."""
         partner = (partner or "").strip(); session = (session or "").strip()[:80]
         with self._lock:
-            m = None
-            if hand:
-                cand = self._data["magnets"].get(_label(partner, hand.strip()[:40]))
-                if cand is not None and cand.get("session") == session:
-                    m = cand
-            if m is None:
-                m = next((x for x in self._data["magnets"].values() if x.get("partner") == partner and x.get("session") == session), None)
-            if m is None:
+            carriers = [x for x in self._data["magnets"].values()
+                        if x.get("partner") == partner and session and x.get("session") == session]
+            if not carriers:
                 return None
-            m["ended_at"] = _iso(_now()); m["end_reason"] = str(reason or "")[:40]
+            when = _iso(_now()); why = str(reason or "")[:40]
+            for x in carriers:
+                x["ended_at"] = when; x["end_reason"] = why
             self._save()
+            key = _label(partner, (hand or "").strip()[:40])
+            m = next((x for x in carriers if x.get("label") == key), None) or next((x for x in carriers if x.get("fridge")), carriers[0])
             return self._magnet_view(m)
 
     def _magnet_view(self, m: dict[str, Any]) -> dict[str, Any]:
