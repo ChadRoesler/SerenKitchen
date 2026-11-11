@@ -167,7 +167,8 @@ function magnetHtml(m, extraClass = "") {
   const state = m.state ? ` ${m.state}` : "";
   const tip = `${who} holds this${m.since ? " since " + m.since.slice(0, 16) : ""}` + (m.state ? ` · ${m.state}` : "") +
     (m.session ? ` · session ${m.session}` : "") + (m.end_reason ? ` (${m.end_reason})` : "") + ". Click: copy how to start their session.";
-  return `<div class="magnet ${extraClass}${state}" style="left:${m.x}px;top:${m.y}px" title="${escapeHtml(tip)}" data-partner="${escapeHtml(who)}">${face}${tag}</div>`;
+  const at = extraClass === "counter" ? "" : ` style="left:${m.x}px;top:${m.y}px"`;   // on the counter it sits in the row, not at a spot on a door
+  return `<div class="magnet ${extraClass}${state}"${at} title="${escapeHtml(tip)}" data-partner="${escapeHtml(who)}">${face}${tag}</div>`;
 }
 
 // ── the wall ─────────────────────────────────────────────────────────────────
