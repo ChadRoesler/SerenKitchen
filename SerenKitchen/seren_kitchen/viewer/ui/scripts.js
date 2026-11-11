@@ -28,8 +28,9 @@ function nameTheHouse(k) {
     for (const a of HANDS) {
       const fam = "Hand-" + a.replace(/[^a-z0-9]/gi, "_");
       css += `@font-face{font-family:"${fam}";src:url(/api/fonts/hand/${encodeURIComponent(a)});font-display:swap}\n` +
-        `.note[data-author="${a}"] h4,.note[data-author="${a}"] p,.note[data-author="${a}"] li,.note[data-author="${a}"] .by,.note[data-author="${a}"] .who{font-family:"${fam}",var(--f-hand)}\n`;
+        `.note[data-author="${a}"]{--hand:"${fam}"}\n`;
     }
+    if (HANDS.length) css += `.note h4,.note p,.note li,.note .by,.note .who,.note.full .who,.note.reply .who{font-family:var(--hand,var(--f-hand)),var(--f-hand)}\n`;
     let st = $("handsCss"); if (!st) { st = document.createElement("style"); st.id = "handsCss"; document.head.append(st); }
     st.textContent = css;
   }
@@ -292,7 +293,8 @@ function paintFridge(f) {
   $("oDoorList").innerHTML = f.door.map(s => cardHtml(s)).join("") || `<span class="tiny muted">the door is bare</span>`;
   $("oShelf").innerHTML = f.shelf.map(s => cardHtml(s)).join("") || `<span class="tiny muted">no lists</span>`;
   const waiting = all.filter(s => s.waiting);
-  $("oDecisions").innerHTML = waiting.map(s => sheetHtml(s)).join("") || `<span class="tiny muted">nothing waiting</span>`;
+  // a card like every other shelf, opened to pick (10 Nov 2026: the full sheet sat here, huge and not clickable)
+  $("oDecisions").innerHTML = waiting.map(s => cardHtml(s)).join("") || `<span class="tiny muted">nothing waiting</span>`;
   $("oCrisper").innerHTML = f.crisper.map(s => cardHtml(s)).join("") || `<span class="tiny muted">no art yet</span>`;
   // the leftovers are a drawer at the bottom: closed until pulled, since that is all that is done and it only grows
   $("oDrawerCount").textContent = f.leftovers.length ? `${f.leftovers.length} done` : "empty";
@@ -617,7 +619,11 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   $("cheese").onclick = cheese;
   $("sheetDlg").addEventListener("close", () => { SHOWN = null; });
-  $("freezerNow").onclick = async () => { try { const r = await api("/api/freezer/refresh", { method: "POST" }); toast(`freezer: ${r.read} read from GitHub${Object.keys(r.unreadable).length ? `, ${Object.keys(r.unreadable).length} unreadable` : ""}`); await loadWall(); } catch (e) { toast(why(e)); } };
+  $("freezerNow").onclick = async () => {
+    const b = $("freezerNow"); b.classList.add("pressed");                 // the big machine drops ice too
+    try { const r = await api("/api/freezer/refresh", { method: "POST" }); toast(`clunk. ice. freezer: ${r.read} read from GitHub${Object.keys(r.unreadable).length ? `, ${Object.keys(r.unreadable).length} unreadable` : ""}`); await loadWall(); } catch (e) { toast(why(e)); }
+    setTimeout(() => b.classList.remove("pressed"), 600);
+  };
   // #fridge=seren-memory opens that fridge straight away: a link to a fridge is a thing you can send,
   // on a fresh load and when the hash changes under an open page; #sheet=<id> opens a sheet
   const fromHash = () => {

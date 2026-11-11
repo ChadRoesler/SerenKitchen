@@ -65,8 +65,7 @@ CLEAR_WINDOW = 300.0              # seconds: a /clear's end and the start that f
 
 def _folder(cwd: str) -> str:
     """The last part of a folder path, whichever box wrote it. A Windows path arriving at a kitchen on Linux has
-    backslashes that pathlib there does not split (10 Nov 2026: a hand named d-serendaemon-serencore-serenmeninges,
-    the whole path, and a second magnet for a session that had one)."""
+    backslashes that pathlib there does not split."""
     parts = [p for p in re.split(r"[\\/]+", str(cwd or "")) if p]
     return parts[-1] if parts else ""
 
