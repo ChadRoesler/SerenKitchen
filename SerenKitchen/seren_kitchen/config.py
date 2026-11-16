@@ -117,6 +117,71 @@ class UpdatesConfig:
         return out
 
 
+@dataclass
+class MagnetsConfig:
+    """A magnet's life, as an installer's defaults: the house page's own say beats these. Bright while its session
+    was seen within grey_after_hours, grey after, in the drawer under the counter once quiet past drawer_after_days.
+    stick_on_start: a session in a folder that is a fridge's repo holds it from its first minute."""
+    grey_after_hours: float = 12.0
+    drawer_after_days: float = 3.0
+    stick_on_start: bool = True
+
+    @classmethod
+    def from_dict(cls, d: Any) -> "MagnetsConfig":
+        d = d if isinstance(d, dict) else {}
+        out = cls()
+        for key, floor in (("grey_after_hours", 0.25), ("drawer_after_days", 0.5)):
+            try:
+                if key in d:
+                    setattr(out, key, max(floor, float(d[key])))
+            except (TypeError, ValueError):
+                diag(f"[seren-kitchen] config: magnets.{key} is a number; keeping {getattr(out, key)}")
+        if "stick_on_start" in d:
+            out.stick_on_start = bool(d["stick_on_start"])
+        return out
+
+
+@dataclass
+class BackupConfig:
+    """Snapshots of the kitchen (seren_sinew.stores), on the kitchen's own schedule, like every other
+    store in the family: kitchen.json whole, the settings, the art, the magnets' faces and the fonts.
+    The GitHub token is never in one. `dir` blank is `backups` beside the state folder, not inside it,
+    so a `cp -r` of the state does not carry every snapshot along with it.
+
+    allow_pull: whether a snapshot may be handed over HTTP (how a Lodestar stashes it on another box).
+    On by default: the kitchen is the house's shared surface, not a diary.
+    restore_from + restore_reason: put a snapshot back at startup, into an EMPTY kitchen only. No route
+    does it; it is these two keys and a restart."""
+    enabled: bool = True
+    dir: str = ""
+    every_hours: float = 24.0          # 0 = never on its own
+    keep_daily: int = 14
+    keep_weekly: int = 8
+    allow_pull: bool = True
+    compress: str = "gz"
+    restore_from: str = ""
+    restore_reason: str = ""
+
+    @classmethod
+    def from_dict(cls, d: Any) -> "BackupConfig":
+        d = d if isinstance(d, dict) else {}
+        out = cls()
+        for key in ("enabled", "allow_pull"):
+            if key in d:
+                setattr(out, key, bool(d[key]))
+        for key, kind in (("every_hours", float), ("keep_daily", int), ("keep_weekly", int)):
+            try:
+                if key in d:
+                    setattr(out, key, kind(d[key]))
+            except (TypeError, ValueError):
+                diag(f"[seren-kitchen] config: backup.{key} is a number; keeping {getattr(out, key)}")
+        for key in ("dir", "restore_from", "restore_reason"):
+            setattr(out, key, str(d.get(key) or ""))
+        c = str(d.get("compress") or out.compress)
+        out.compress = c if c in ("gz", "xz", "none") else "gz"
+        return out
+
+
 def _merge_fridges(raw: Any, drop: Any) -> List[Dict[str, Any]]:
     """The family, then the yaml's say: a listed name that exists is recoloured or renamed
     in place, a new one is appended, and `drop` takes names off the wall."""
@@ -148,6 +213,8 @@ class KitchenConfig:
     github: GithubConfig = field(default_factory=GithubConfig)
     house: HouseConfig = field(default_factory=HouseConfig)
     updates: UpdatesConfig = field(default_factory=UpdatesConfig)
+    backup: BackupConfig = field(default_factory=BackupConfig)
+    magnets: MagnetsConfig = field(default_factory=MagnetsConfig)
 
     @property
     def host(self) -> str:
@@ -160,6 +227,13 @@ class KitchenConfig:
     @property
     def state_path(self) -> Path:
         return Path(os.path.expanduser(self.state_dir))
+
+    @property
+    def backup_path(self) -> Path:
+        """Where snapshots go: the yaml's backup.dir, else `backups` beside the state folder."""
+        if self.backup.dir.strip():
+            return Path(os.path.expanduser(self.backup.dir))
+        return self.state_path.parent / "backups"
 
 
 def _candidate_paths(explicit: Optional[str]) -> List[Path]:
@@ -209,4 +283,6 @@ def load_config(path: Optional[str] = None) -> KitchenConfig:
         github=GithubConfig.from_dict(data.get("github")),
         house=HouseConfig.from_dict(data.get("house")),
         updates=UpdatesConfig.from_dict(data.get("updates")),
+        backup=BackupConfig.from_dict(data.get("backup")),
+        magnets=MagnetsConfig.from_dict(data.get("magnets")),
     )

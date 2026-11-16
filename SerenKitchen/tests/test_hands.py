@@ -19,9 +19,10 @@ def store(tmp_path) -> Store:
 
 def test_each_hand_is_its_own_magnet_and_wears_the_partners_face(tmp_path):
     st = store(tmp_path)
-    st.set_magnet("ada", starter="start ada", picture=FACE)
+    face = st.set_magnet("ada", starter="start ada", picture=FACE)["picture"]
+    assert face.startswith("/api/faces/")                                                           # kept as a file, not in the json
     m = st.set_magnet("ada", hand="carabiner", starter="start the ada in carabiner")
-    assert m["label"] == "ada·carabiner" and m["hand"] == "carabiner" and m["picture"] == FACE      # the face came along
+    assert m["label"] == "ada·carabiner" and m["hand"] == "carabiner" and m["picture"] == face      # the face came along
     assert m["starter"] == "start the ada in carabiner" and st.magnet("ada")["starter"] == "start ada"
     st.stick("ada", "seren-memory")
     st.stick("ada", "seren-carabiner", hand="carabiner")
@@ -43,9 +44,9 @@ def test_a_sheet_says_which_hand_left_it_and_authors_ignore_case(tmp_path):
 def test_hands_over_http_and_an_older_magnet_survives(tmp_path):
     cfg = KitchenConfig(server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "s"))
     with TestClient(create_app(cfg, run_freezer=False)) as c:
-        c.post("/api/magnets", json={"partner": "ada", "picture": FACE})
+        face = c.post("/api/magnets", json={"partner": "ada", "picture": FACE}).json()["picture"]
         m = c.post("/api/magnets", json={"partner": "ada", "hand": "carabiner", "starter": "the carabiner ada"}).json()
-        assert m["label"] == "ada·carabiner" and m["picture"] == FACE
+        assert m["label"] == "ada·carabiner" and m["picture"] == face and c.get(face).status_code == 200
         m = c.post("/api/magnets/ada/stick", json={"fridge": "seren-carabiner", "hand": "carabiner"}).json()
         assert m["fridge"] == "seren-carabiner"
         assert c.get("/api/fridges/seren-carabiner").json()["held_by"] == ["ada·carabiner"]
@@ -61,4 +62,4 @@ def test_hands_over_http_and_an_older_magnet_survives(tmp_path):
     d["magnets"] = {"ada": {"partner": "ada", "starter": "old", "picture": "", "fridge": None, "x": 1, "y": 2, "since": "2026-01-01T00:00:00"}}
     p.write_text(json.dumps(d), encoding="utf-8")
     with TestClient(create_app(cfg, run_freezer=False)) as c:
-        assert c.get("/api/magnets").json()[0] == {**d["magnets"]["ada"], "hand": "", "label": "ada", "state": ""}
+        assert c.get("/api/magnets").json()[0] == {**d["magnets"]["ada"], "hand": "", "label": "ada", "state": "", "in_drawer": False}

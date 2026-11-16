@@ -40,5 +40,26 @@ server:
 # A decision nobody has picked in this many days goes off like milk.
 sour_after_days: 7
 
+# A magnet's life, as defaults for a new kitchen (the house page changes them after). Bright while its session
+# was seen within grey_after_hours; grey after that (or once it ends), and it stays where it is; in the drawer under
+# the counter once quiet past drawer_after_days. A session in a folder that IS a fridge's repo sticks to it on start.
+# magnets:
+#   grey_after_hours: 12
+#   drawer_after_days: 3
+#   stick_on_start: true
+
+# Snapshots of the kitchen (seren_sinew.stores): kitchen.json, the settings, the art, the faces, the fonts.
+# Never the GitHub token. Blank dir = `backups` beside state_dir.
+# backup:
+#   enabled: true
+#   every_hours: 24          # 0 = only when asked (POST /stores/snapshot, or a Lodestar)
+#   keep_daily: 14
+#   keep_weekly: 8
+#   allow_pull: true         # a Lodestar may carry a snapshot to another box
+#   # dir: ~/seren-kitchen/backups
+#   # THE RESTORE: a snapshot folder or its .tar.gz, and why. Into an EMPTY kitchen only; then restart.
+#   # restore_from: ~/seren-kitchen/backups/seren-kitchen/20261116-120000
+#   # restore_reason: the old box died
+
 updates:
   enabled: true

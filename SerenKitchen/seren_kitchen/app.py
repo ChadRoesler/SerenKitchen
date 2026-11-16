@@ -37,7 +37,9 @@ FONT_TYPES = {".ttf": "font/ttf", ".otf": "font/otf", ".woff": "font/woff", ".wo
 ART_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp"}
 ART_NAME = re.compile(r"[0-9a-f]{12}(-\d+)?\.(png|jpg|gif|webp)")
 MAX_ART = 8 * 1024 * 1024
-FEATURES = ["fridges", "magnets", "sheets", "shelves", "decisions", "leftovers", "fonts", "replies", "freezer", "art", "settings", "big-fridge"]
+FEATURES = ["fridges", "magnets", "sheets", "shelves", "decisions", "leftovers", "fonts", "replies", "freezer", "art", "settings", "big-fridge",
+            "faces", "gallery", "magnet-drawer", "stores"]
+FACE_TYPES = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
 # the house's own fridge: its sheets go on the big fridge's door and freezer, not on a polaroid
 HOUSE_FRIDGE = "seren-project"
 
@@ -50,6 +52,11 @@ def _settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
+def _life(st: Store) -> dict[str, Any]:
+    """A magnet's life as the house has it set."""
+    return {"grey_after_hours": st.grey_after / 3600.0, "drawer_after_days": st.drawer_after / 86400.0, "stick_on_start": st.stick_on_start}
+
+
 def _refuse(exc: ValueError) -> HTTPException:
     return HTTPException(400, str(exc))
 
@@ -60,38 +67,102 @@ def _body(request_json: Any) -> dict[str, Any]:
     return request_json
 
 
+def _declared(cfg: KitchenConfig) -> list:
+    """What the kitchen keeps on disk, for a snapshot and for a restore (seren_sinew.stores). kitchen.json is
+    the kitchen; the rest is optional on a restore, since a snapshot from before it existed holds none of it.
+    The GitHub token is a file in the same folder and is deliberately not here: a backup is not a way out
+    for a secret that is never read back."""
+    from seren_sinew.stores import Store as Kept
+    st = cfg.state_path
+    return [Kept("kitchen", "file", str(st / "kitchen.json"), "the sheets, the magnets, the freezer's facts and the faces' gallery"),
+            Kept("settings", "file", str(st / "settings.json"), "what the house decided from the page: fridges, names, milk", optional=True),
+            Kept("art", "dir", str(st / "art"), "the pictures on the sheets", optional=True),
+            Kept("faces", "dir", str(st / "faces"), "the pictures the magnets wear, and have worn", optional=True),
+            Kept("fonts", "dir", str(st / "fonts"), "fonts and hands uploaded from the page", optional=True)]
+
+
+def _check(restored: dict, manifest: dict, snapshot: Path) -> dict:
+    """A rehearsal's look at a restored COPY: kitchen.json read and counted, and every picture it names
+    looked for in the copied folders."""
+    import json as _json
+    k = _json.loads((restored["kitchen"] / "kitchen.json").read_text(encoding="utf-8"))
+    sheets, magnets, faces = k.get("sheets") or {}, k.get("magnets") or {}, k.get("faces") or {}
+    art = [a for s in sheets.values() for a in (s.get("art") or [])]
+    worn = {f.get("file") for f in faces.values()} | {(m.get("picture") or "")[len("/api/faces/"):] for m in magnets.values()
+                                                      if (m.get("picture") or "").startswith("/api/faces/")}
+    lost_art = [a for a in art if "art" not in restored or not (restored["art"] / a).is_file()]
+    lost_faces = [f for f in worn if f and ("faces" not in restored or not (restored["faces"] / f).is_file())]
+    rep: dict = {"counts": {"sheets": len(sheets), "magnets": len(magnets), "faces": len(faces)}}
+    problems = []
+    if lost_art:
+        problems.append(f"{len(lost_art)} of the {len(art)} picture(s) the sheets name are not in the copy")
+    if lost_faces:
+        problems.append(f"{len(lost_faces)} of the {len(worn)} face(s) the magnets and the gallery name are not in the copy")
+    if problems:
+        rep["problems"] = problems
+    return rep
+
+
 def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Optional[httpx.AsyncBaseTransport] = None,
                run_freezer: bool = True) -> FastAPI:
     cfg = config or load_config()
+    from seren_sinew.stores import StoreKeeper, add_store_routes, restore_at_startup, snapshot_loop
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # A restore, when the yaml asks for one (backup.restore_from + restore_reason): into an empty kitchen only,
+        # before the store opens. Refused = the kitchen does not start. No route does this.
+        if cfg.backup.restore_from.strip():
+            restore_at_startup(NAME, _declared(cfg), cfg.backup.restore_from, cfg.backup.restore_reason,
+                               cfg.backup_path / NAME, log=lambda m: diag(f"[seren-kitchen] {m}"))
         # the yaml is what an installer knows; settings.json in the state folder is what the house decided after
         app.state.settings = Settings(cfg.state_path)
         st = app.state.settings
         fridges = st.effective_fridges(cfg.fridges)
         sour = st.data.get("sour_after_days")
+        # a magnet's life: the page's say first, the yaml's (an installer's defaults) second
+        life = st.data.get("magnets") or {}
         app.state.store = Store(cfg.state_path / "kitchen.json", fridges,
-                                sour_after_days=float(sour) if sour is not None else cfg.sour_after_days)
+                                sour_after_days=float(sour) if sour is not None else cfg.sour_after_days,
+                                grey_after_hours=float(life.get("grey_after_hours") or cfg.magnets.grey_after_hours),
+                                drawer_after_days=float(life.get("drawer_after_days") or cfg.magnets.drawer_after_days))
+        sos = life.get("stick_on_start")
+        app.state.store.stick_on_start = bool(sos) if sos is not None else cfg.magnets.stick_on_start
         gh = st.data.get("github") or {}
         app.state.freezer = Freezer(app.state.store, fridges, interval_minutes=float(gh.get("interval_minutes") or cfg.github.interval_minutes),
                                     token=token_from_env(cfg.github.token_env), transport=github_transport,
                                     token_source=st.token)
         enabled = gh.get("enabled") if gh.get("enabled") is not None else cfg.github.enabled
         task = asyncio.create_task(app.state.freezer.run()) if (run_freezer and enabled) else None
+        # snapshots on the kitchen's own schedule, so a kitchen with no Lodestar is still backed up
+        snaps = asyncio.create_task(snapshot_loop(lambda: app.state.stores, cfg.backup.every_hours)) \
+            if (app.state.stores is not None and cfg.backup.every_hours > 0) else None
         try:
             yield
         finally:
-            if task is not None:
-                task.cancel()
+            for t in (task, snaps):
+                if t is not None:
+                    t.cancel()
 
     app = FastAPI(title="SerenKitchen", version=APP_VERSION, lifespan=lifespan)
     app.state.cfg = cfg
 
     # Open on loopback with no token, like the rest of the family; enforce_server refuses a wider
     # bind without one before this ever runs. /api/fonts is public: a stylesheet cannot send a bearer.
-    app.add_middleware(bearer_auth_middleware(cfg.server.resolve_bearer(), public_paths=DEFAULT_PUBLIC_PATHS | {"/api/fonts", "/api/art"}))
+    app.add_middleware(bearer_auth_middleware(cfg.server.resolve_bearer(), public_paths=DEFAULT_PUBLIC_PATHS | {"/api/fonts", "/api/art", "/api/faces"}))
     app.add_middleware(RequestLoggingMiddleware, service_name=NAME, env_prefix="SEREN_KITCHEN")
+
+    # ── what the kitchen keeps, and snapshots of it (seren_sinew.stores): GET /stores, POST /stores/snapshot,
+    # GET /stores/snapshots, the archive a Lodestar pulls, and the rehearsal. No route restores or deletes one.
+    def _extra() -> dict:
+        st = getattr(app.state, "store", None)
+        return {"version": APP_VERSION, "counts": {"sheets": len(st), "magnets": len(st.magnets()), "faces": len(st.faces())} if st else {}}
+
+    app.state.stores = StoreKeeper(NAME, lambda: _declared(cfg), cfg.backup_path, extra=_extra, check=_check,
+                                   keep_daily=cfg.backup.keep_daily, keep_weekly=cfg.backup.keep_weekly, compress=cfg.backup.compress,
+                                   log=lambda m: diag(f"[seren-kitchen] {m}")) if cfg.backup.enabled else None
+    add_store_routes(app, lambda: app.state.stores, archive_allowed=lambda: cfg.backup.allow_pull,
+                     archive_refusal="this kitchen's snapshots stay on this box (backup.allow_pull is off).")
 
     try:
         from seren_meninges.updates import UpdateChecker
@@ -138,7 +209,8 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
                              "doors": st.sheets(place="door"), "kinds": list(KINDS), "places": list(PLACES),
                              "fonts": {slot: bool(se.font_file(slot) or cfg.fonts.path(slot)) for slot in FONT_SLOTS},
                              "hands": sorted(hands), "house": house,
-                             "sour_after_days": st.sour_after / 86400.0},
+                             "sour_after_days": st.sour_after / 86400.0,
+                             "magnet_life": _life(st)},
                             headers={"Cache-Control": "no-store"})
 
     # ── settings: what the house decides after moving in, from the page ───────
@@ -213,6 +285,24 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
         except ValueError as exc:
             raise _refuse(exc)
 
+    @app.post("/api/settings/magnets")
+    async def set_magnet_life(request: Request):
+        """{"grey_after_hours": 12, "drawer_after_days": 3, "stick_on_start": true}, any of them: how long a magnet
+        stays bright, how long until a quiet one goes in the drawer, and whether a session in a fridge's repo holds it
+        from its first minute."""
+        body = _body(await request.json())
+        try:
+            out = _settings(request).set_magnets(grey_after_hours=body.get("grey_after_hours"), drawer_after_days=body.get("drawer_after_days"),
+                                                 stick_on_start=body.get("stick_on_start"))
+        except (TypeError, ValueError):
+            raise HTTPException(400, "hours and days are numbers")
+        st = _store(request)
+        st.grey_after = float(out.get("grey_after_hours") or cfg.magnets.grey_after_hours) * 3600.0
+        st.drawer_after = float(out.get("drawer_after_days") or cfg.magnets.drawer_after_days) * 86400.0
+        if out.get("stick_on_start") is not None:
+            st.stick_on_start = bool(out["stick_on_start"])
+        return _life(st)
+
     @app.post("/api/settings/sour")
     async def set_sour(request: Request):
         body = _body(await request.json())
@@ -266,10 +356,11 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
         f = next((f for f in st.fridges() if f["name"] == name), None)
         if f is None:
             raise HTTPException(404, f"no fridge called {name!r}")
-        return JSONResponse({**f, "magnets": [m for m in st.magnets() if m.get("fridge") == name],
+        return JSONResponse({**f, "magnets": [m for m in st.magnets() if m.get("fridge") == name and not m["in_drawer"]],
                              "door": st.sheets(fridge=name, place="door"), "shelf": st.sheets(fridge=name, place="shelf"),
                              "crisper": st.sheets(fridge=name, place="crisper"),
-                             "leftovers": st.sheets(fridge=name, place="leftovers")},
+                             "leftovers": st.sheets(fridge=name, place="leftovers"),
+                             "faces": st.faces(fridge=name)},
                             headers={"Cache-Control": "no-store"})
 
     @app.post("/api/fridges/{name}/facts")
@@ -330,6 +421,15 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
         else:
             head = f"The kitchen knows this session as {m['label']}."
         where = f"Your magnet is on {m['fridge']}." if m.get("fridge") else "Your magnet is on the counter: kitchen_stick when you take a repo."
+        if m.get("stuck"):
+            where = f"This folder is {m['stuck']}'s repo, so your magnet went straight onto it."
+            busy = [t["label"] for t in m.get("took_from") or [] if t.get("busy")]
+            quiet = [t["label"] for t in m.get("took_from") or [] if not t.get("busy")]
+            if busy:
+                where += (f" {', '.join(busy)} held it and {'was' if len(busy) == 1 else 'were'} at work there within the hour: "
+                          f"they are on the counter now and will be told. Check the kitchen before you change anything they may be in the middle of.")
+            if quiet:
+                where += f" {', '.join(quiet)} held it before you, quietly; they are on the counter now."
         return f"{head} {tools} {where}"
 
     @app.post("/api/sessions")
@@ -350,16 +450,55 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
                                hand=str(body.get("hand") or ""))
             if m is None:
                 raise HTTPException(404, "no magnet carries that session")
+        elif ev == "touch":
+            # a prompt was sent in the session: it is still at work. `say` is empty unless it has something to learn
+            # (its fridge or its hand was taken over while it was quiet); a hook prints it into the session.
+            m, note = st.touch(partner=str(body.get("partner") or ""), session=str(body.get("session") or ""), hand=str(body.get("hand") or ""))
+            if m is None:
+                raise HTTPException(404, "no magnet carries that session")
+            return {"ok": True, "label": m["label"], "hand": m["hand"], "on": m.get("fridge"), "state": m["state"], "say": note}
         else:
-            raise HTTPException(400, "event is start or end")
+            raise HTTPException(400, "event is start, touch or end")
         return {"ok": True, "label": m["label"], "hand": m["hand"], "on": m.get("fridge"), "state": m["state"], "starter": m.get("starter", ""),
                 "say": _say(ev, m)}
 
+    @app.post("/api/magnets/{partner}/drawer")
+    async def drawer(request: Request, partner: str):
+        """{"hand": "...", "away": true}: into the drawer under the counter (off its fridge, if it was on one);
+        {"away": false}: back out onto the counter. A loose magnet whose session ended goes in on its own."""
+        body = _body(await request.json())
+        return _store(request).put_away(partner, bool(body.get("away", True)), hand=str(body.get("hand") or ""))
+
     @app.delete("/api/magnets/{partner}")
     async def drop_magnet(request: Request, partner: str, hand: str = ""):
+        """Off the board for good. The faces it wore stay in the gallery."""
         if not _store(request).drop_magnet(partner, hand):
             raise HTTPException(404, f"no magnet for {partner!r}")
         return {"ok": True}
+
+    # ── faces: the pictures magnets wear, and the gallery of every one they have worn ──
+    @app.get("/api/gallery")
+    async def gallery(request: Request, fridge: Optional[str] = None):
+        """Every face a magnet has worn, newest first, each with the fridge it was hung on and who wears it now.
+        ?fridge=seren-memory for one fridge's; ?fridge= (blank) for the ones that belong to none."""
+        return _store(request).faces(fridge=fridge)
+
+    @app.delete("/api/gallery/{face_id}")
+    async def drop_face(request: Request, face_id: str):
+        """One face out of the gallery. A magnet still wearing it keeps it."""
+        if not _store(request).drop_face(face_id):
+            raise HTTPException(404, f"no face {face_id!r} in the gallery")
+        return {"ok": True}
+
+    @app.get("/api/faces/{name}", include_in_schema=False)
+    async def face(request: Request, name: str):
+        """A magnet's face. Public, like the art: an <img> cannot send a bearer. Named by what is in it, so it
+        never changes under its name."""
+        p = _store(request).face_file(name)
+        if p is None:
+            raise HTTPException(404, "no such face")
+        return FileResponse(str(p), media_type=FACE_TYPES.get(p.suffix.lstrip(".").lower(), "application/octet-stream"),
+                            headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
     # ── sheets ────────────────────────────────────────────────────────────────
     @app.get("/api/sheets")

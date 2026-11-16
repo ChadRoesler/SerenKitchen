@@ -37,7 +37,8 @@
    float off to whatever positioned thing was further up (11 Nov 2026: a hand's name adrift over a polaroid) */
 .magnet.counter { position: relative; display: inline-block; margin: 0 18px 8px; flex: none; }
 /* a magnet whose session ended fades; one gone past the milk days is the carton on the milk: a face nobody has seen in a while */
-.magnet.ended img, .magnet.ended .blank { filter: grayscale(.8) opacity(.75); }
+/* grey: quiet past the house's hours, or its session said it ended; it stays where it is until the drawer takes it */
+.magnet.ended img, .magnet.ended .blank, .magnet.idle img, .magnet.idle .blank { filter: grayscale(.8) opacity(.75); }
 .magnet.missing img, .magnet.missing .blank { filter: grayscale(1) opacity(.5); }
 .magnet.missing::before { content: "?"; position: absolute; top: -6px; right: -4px; width: 16px; height: 16px; border-radius: 50%; background: #d0393e; color: #fff8e1;
   font: 700 11px/16px var(--mono); text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
@@ -113,8 +114,43 @@ body.tidy .polaroid, body.tidy .polaroid:hover { transform: none; }
 .counter { margin: 44px -18px 0; }
 .counter-top { height: 14px; background: #6b5d4a; border-top: 3px solid #5a4d3c; box-shadow: 0 -4px 10px rgba(0,0,0,.2); }
 .counter-things { background: #4a4035; padding: 12px 18px 16px; display: flex; align-items: center; gap: 16px; border-radius: 0 0 var(--radius) var(--radius); }
-.counter-magnets { flex: 1; min-height: 54px; display: flex; align-items: center; }
-.cheese { font-size: 30px; cursor: pointer; user-select: none; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); transition: transform .1s; }
+/* the magnets wrap onto a second row rather than shove along it: a row that never wrapped had a floor of its
+   own content's width, and enough magnets pushed the cheese off the end of the counter (16 Nov 2026: floor cheese) */
+.counter-magnets { flex: 1 1 0; min-width: 0; min-height: 54px; display: flex; flex-wrap: wrap; align-items: center; row-gap: 16px; padding-top: 6px; }
+.cheese { flex: none; align-self: flex-end; font-size: 30px; cursor: pointer; user-select: none; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); transition: transform .1s; }
+/* put away: a little button on a loose magnet, there when you reach for it */
+.magnet .stow { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #1b1b1f; background: #fff3c4; color: #1b1b1f;
+  font-size: 11px; line-height: 1; padding: 0; cursor: pointer; opacity: 0; transition: opacity .12s; display: flex; align-items: center; justify-content: center; }
+.magnet:hover .stow, .magnet .stow:focus-visible { opacity: 1; }
+@media (hover: none) { .magnet .stow { opacity: .85; } }
+/* the old magnets' drawer, under the counter, the same drawer the leftovers live in */
+.magnet-drawer { margin: 0; padding: 0 18px 14px; background: #4a4035; border-radius: 0 0 var(--radius) var(--radius); }
+.counter-things { border-radius: 0; }
+.drawer-magnets { display: flex; flex-wrap: wrap; gap: 14px 20px; }
+.drawer-magnet { display: flex; gap: 12px; align-items: flex-start; background: #f6f1e4; border-radius: 6px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,.2); min-width: 220px; max-width: 340px; color: #4b4336; }
+.magnet.in-drawer { position: relative; flex: none; }
+.dm-text { flex: 1; min-width: 0; }
+.dm-who { font-family: var(--f-hand); font-size: 17px; color: var(--ink); }
+.dm-acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.dm-hist { margin-top: 4px; } .dm-hist summary { cursor: pointer; }
+.dm-old { display: inline-flex; align-items: center; gap: 4px; margin: 4px 4px 0 0; font-family: var(--mono); }
+.dm-old img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
+
+/* faces: polaroids of the pictures magnets wore, in a strip on a fridge and on the gallery's wall */
+.face-strip { display: flex; flex-wrap: wrap; gap: 18px 16px; align-items: flex-start; min-height: 40px; }
+.face-card { margin: 0; width: 132px; background: #fff; padding: 7px 7px 6px; box-shadow: 0 2px 6px rgba(0,0,0,.3); transform: rotate(var(--rot)); cursor: pointer; transition: transform .15s; color: var(--ink); }
+.face-card:hover { transform: rotate(0deg) scale(1.06); z-index: 3; }
+.face-card img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #eee; }
+.face-card figcaption { font-family: var(--f-hand); font-size: 14px; margin-top: 5px; text-align: center; line-height: 1.1; }
+.face-card .cnt { display: block; font-family: var(--mono); font-size: 9px; opacity: .6; margin-top: 2px; }
+.face-card .wearing { display: inline-block; margin-top: 3px; font-family: var(--mono); font-size: 9px; background: #34914d; color: #fff8e1; padding: 0 6px; border-radius: 7px; }
+.shelf.faces { border-bottom-width: 4px; }
+.gallery-wall { background: var(--wall); color: #fff8ed; }
+.gallery-wall h3 { color: #fff8ed; }
+.gallery-group { margin: 18px 0 26px; }
+.gallery-group > h4 { font-family: var(--f-name); font-size: 22px; margin: 0 0 12px; font-weight: 700; }
+.face-dlg .face-big { display: block; max-width: 100%; height: auto; margin: 8px auto 10px; border: 6px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+body.tidy .face-card, body.tidy .face-card:hover { transform: rotate(0deg); }
 .cheese:active { transform: scale(.9) rotate(-8deg); }
 
 /* no fridge open: a grey fridge with its door swung out and the light on inside, which is also the way back to the wall */
@@ -202,6 +238,9 @@ body.hinge-left .ghandle { left: auto; right: 14px; }
 .drawer-handle { width: 54px; height: 10px; border-radius: 5px; background: #8f7c62; box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
 .drawer-label { font-family: var(--f-freezer); letter-spacing: 2px; font-size: 13px; }
 .drawer-count { margin-left: auto; font-family: var(--f-hand); font-size: 14px; opacity: .75; }
+/* a pulled drawer is `.open`, and so is an open fridge, whose rule is a 300px grid: without this the drawer front
+   shrank to 300px and what was in it sat beside it, in the leftovers and the old magnets alike (16 Nov 2026) */
+.drawer.open { display: block; }
 .drawer.open .drawer-front { border-radius: 6px 6px 0 0; box-shadow: inset 0 -3px 0 #bfb39b; }
 .drawer-inside { background: #ece6d8; border: 2px solid #cfc3ad; border-top: none; border-radius: 0 0 6px 6px; padding: 12px; }
 .drawer-inside .card-note { opacity: .75; filter: saturate(.7); }
@@ -299,7 +338,7 @@ body.tidy .fridge .door.swing { transform: none; }
 #ghToken { flex: 1; min-width: 200px; }
 
 /* the one line of orientation under the counter */
-.kitchen .about { font-family: var(--f-hand); font-size: 15px; color: #6b6356; margin: 12px 2px 0; line-height: 1.35; padding-bottom: 10px; }
+.kitchen .about { font-family: var(--f-hand); font-size: 15px; color: #fff8ed; margin: 12px 2px 0; line-height: 1.35; padding-bottom: 10px; }
 .note.full h4 { font-size: 26px; margin: 4px 0 8px; }
 .note.full .who, .note.reply .who { font-size: 12px; opacity: .6; font-family: var(--f-hand); }
 .note.full .body { font-size: 16px; max-height: none; line-height: 1.3; }

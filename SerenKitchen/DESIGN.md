@@ -82,6 +82,42 @@ it was for.
   own magnet with its own starter, so one sticking to a fridge never yanks the
   other's claim, and a sheet says which hand left it. Without a hand, a partner
   is one magnet, as before.
+- **A magnet's life runs on time, not goodbyes.** A closed tab never says it
+  ended, and nobody should have to remember to `/exit`. A magnet is bright while
+  its session was seen within 12 hours. After that it goes grey (an `/exit` greys
+  it at once), and it stays where it is: on its fridge, saying who was last there.
+  After 3 days quiet it goes in the drawer under the counter, like the leftovers:
+  closed until pulled, still there to copy an old starter from. The house sets
+  both numbers from the page. A magnet in the drawer remembers its fridge, so
+  picking that session up again puts it straight back.
+- **Taken over, onto the counter.** When another hand of the same partner sticks
+  to a fridge, the one already there moves to the counter and remembers who took
+  it. A tangle of one partner's sessions never fights over one repo. Another
+  partner on the same fridge, the person of the house beside a partner, is
+  pairing, not a takeover, so it stays.
+- **A prompt is a sign of life.** A `touch` (the harness's prompt hook) marks a
+  session's magnet as seen now, so bright means somebody is talking to it, not that
+  it happened to use a kitchen tool lately.
+- **Nobody is replaced without being told.** A session whose fridge another hand
+  took, or whose hand a newer session took over while it was quiet, learns it on
+  its next prompt, once, in words, with whether the other one is at work right now.
+  A silent takeover is how one partner's sessions end up as strangers in one repo.
+- **A session in a fridge's repo holds it from minute one.** The kitchen knows
+  which folder is which fridge's repo, and a model's first minute is the step that
+  gets skipped, so the start sticks the magnet, and the new session is told whom it
+  moved to the counter. A folder that is no fridge's repo holds nothing (a session
+  that only talks still needs no fridge). The house can turn this off.
+- **Busy is not bright.** A new session gets a numbered hand (`kitchen-2`) only
+  when the hand's last session did something within the hour. A tab closed this
+  morning still looks bright, but its hand goes to the next session in that
+  folder, so a messy desk doesn't fill the board with numbered strangers (enough
+  of them pushed the cheese off the counter on 16 Nov 2026).
+- **A face is a file, and the gallery keeps every one.** A picture someone made
+  of themselves is the thing to keep, so changing a face, or dropping a magnet,
+  never throws the old picture out. Each face hangs under the fridge it was made
+  for (the one its magnet is on, or the one its hand is named after). Faces are
+  files named by what is in them, so the JSON the page polls every ten seconds
+  carries addresses, not a quarter-megabyte of base64 per magnet.
 - **Names compare without case.** A name signed in capitals is the same person as
   the name in small letters, and is shown as signed.
 
@@ -110,6 +146,11 @@ it was for.
   and a crash mid-write leaves the old kitchen rather than a torn one.
 - **Pictures and fonts are files beside it**, named by what they belong to,
   and come down with it.
+- **The kitchen backs itself up like everything else.** The family's snapshot
+  code (`seren_sinew.stores`), not a kitchen-shaped copy of it: the same
+  `/stores` routes a Lodestar already pulls from, the same rehearsal, the same
+  restore that only goes into an empty kitchen. The token is left out on purpose:
+  a backup is not a way out for a secret that is never read back.
 - **The yaml is what an installer can know**: where to listen, where the
   state lives. Everything a house decides after moving in (fonts, the
   GitHub token, which fridges, whose names, how long milk keeps) is set from

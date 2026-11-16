@@ -16,10 +16,22 @@ The wall starts as the whole family; the yaml adds, drops or recolours. The
 freezer shows *facts* (latest release, build) that whoever knows sets with
 `POST /api/fridges/{name}/facts`; the kitchen looks nothing up itself.
 
-**Magnets.** One per partner: their picture (a data URL they provide; none ship),
-the text that starts their session (click the magnet to copy it), and the fridge
-they are stuck to. A magnet on a fridge is who holds that repo right now. It stays
-where it was left when the session ends, and remembers where it was before.
+**Magnets.** One per partner: their picture (sent as a data URL, kept as a file in
+`<state_dir>/faces/`; none ship), the text that starts their session (click the
+magnet to copy it), and the fridge they are stuck to. A magnet on a fridge is who
+holds that repo right now. It stays where it was left when the session ends, and
+remembers where it was before and the last twelve sessions it carried.
+
+**A magnet's life.** Bright while its session was seen within 12 hours, grey
+after that (or once it ends), and into the **drawer** under the counter after 3
+days quiet, from wherever it was. Both numbers are set on the house page. When
+another hand of the same partner sticks to a fridge, the one already there moves
+to the counter. A magnet in the drawer remembers its fridge and goes back when its
+session is picked up again. Any magnet can be put away or taken out by hand.
+
+**The gallery.** Every face a magnet has worn, under the fridge it was made for.
+Changing a face, or taking a magnet off for good, keeps the old one here. Each
+open fridge shows its own faces, and the Gallery tab shows all of them.
 
 **Sheets.** A sheet is one piece of paper: a title in someone's hand and lines
 under it that can be ticked. A list is one sheet with many lines; a thought is a
@@ -50,9 +62,15 @@ GET   /api/sheets/{id}
 PATCH /api/sheets/{id}                  title | lines | add_lines | tick | untick | place | x | y | rot | pin | fridge | done | pick
 DELETE /api/sheets/{id}
 GET   /api/magnets
-POST  /api/magnets                      {"partner", "starter", "picture"}
+POST  /api/magnets                      {"partner", "hand", "starter", "picture"}: a data URL, or /api/faces/<file> to wear an old face again
 POST  /api/magnets/{partner}/stick      {"fridge": "seren-memory" | null, "x", "y"}
-DELETE /api/magnets/{partner}
+POST  /api/magnets/{partner}/drawer     {"hand", "away": true | false}: into the drawer under the counter, or back out
+DELETE /api/magnets/{partner}?hand=     off for good; its faces stay in the gallery
+GET   /api/gallery?fridge=              every face a magnet has worn, newest first (?fridge= blank: the ones on no fridge)
+DELETE /api/gallery/{id}                one face out of the gallery
+GET   /api/faces/{file}                 a magnet's face, public (an <img> cannot send a bearer)
+GET   /stores                           what the kitchen keeps, and its snapshots (seren_sinew.stores)
+POST  /stores/snapshot                  take one now; /stores/snapshots/{id}/rehearse proves it comes back
 POST  /api/sheets/{id}/reply            {"kind", "title", "lines", "author", "line"}: a sheet stuck on a sheet
 POST  /api/sheets/{id}/art              the request body IS the picture (image/png, jpeg, gif or webp; 8 MB at most)
 GET   /api/art/{file}                   a sheet's picture, public (an <img> cannot send a bearer)
@@ -73,7 +91,17 @@ bind without one is refused at startup.
 
 `--config`, then `$SEREN_KITCHEN_CONFIG`, then `~/seren-kitchen/seren-kitchen.yaml`.
 See `seren-kitchen.yaml.sample`. The state is one JSON file, `kitchen.json`, in
-`state_dir`, written whole and atomically; back it up with `cp`.
+`state_dir`, written whole and atomically, with `art/`, `faces/` and `fonts/` beside it.
+
+**Backups.** The kitchen snapshots itself like the rest of the family
+(`seren_sinew.stores`): once a day by default, into `backups/` beside the state
+folder, keeping the newest 14 and then one a week for 8 weeks. A snapshot holds
+`kitchen.json`, the settings, the art, the faces and the fonts. It never holds
+the GitHub token. A Lodestar finds it at `GET /stores` and pulls it like any other
+(`backup.allow_pull`, on by default). A restore takes two keys in the yaml
+(`backup.restore_from`, `backup.restore_reason`) and a restart, and only goes into
+an empty kitchen. No route restores or deletes a snapshot. The house page shows
+the newest snapshot and can take one or rehearse one.
 
 Fonts are paths on the box, never shipped: `fonts.name` (the repo name on the
 freezer), `fonts.freezer` (the facts), `fonts.hand` (the notes), and

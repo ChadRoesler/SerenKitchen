@@ -21,6 +21,11 @@
         <div id="counterMagnets" class="counter-magnets" title="Magnets not on any fridge"></div>
         <div class="cheese" id="cheese" title="the last slice">🧀</div>
       </div>
+      <!-- the drawer under the counter: magnets nobody is using, closed until pulled, like the leftovers -->
+      <div class="drawer magnet-drawer" id="mDrawer">
+        <button class="drawer-front" id="mDrawerPull" title="pull the drawer"><span class="drawer-handle"></span><span class="drawer-label">OLD MAGNETS</span><span class="drawer-count" id="mDrawerCount"></span></button>
+        <div class="drawer-inside" id="mDrawerInside" hidden><div class="drawer-magnets" id="mDrawerMagnets"></div></div>
+      </div>
     </div>
     <p class="about">a fridge per app. a magnet on a fridge is who holds that repo right now, so a session that only
       talks needs no magnet. a sheet is a note, not a task: a thank-you is as welcome as a honey-do. the leftovers
@@ -56,6 +61,7 @@
       <div class="shelf" data-place="shelf"><h4>Top shelf · the lists</h4><div class="shelf-items" id="oShelf"></div></div>
       <div class="shelf" data-place="waiting"><h4>Middle shelf · waiting on someone</h4><div class="shelf-items" id="oDecisions"></div></div>
       <div class="shelf crisper" data-place="crisper"><h4>Crisper · art</h4><div class="shelf-items" id="oCrisper"></div></div>
+      <div class="shelf faces" data-place="faces"><h4>Who has been here · their faces</h4><div class="face-strip" id="oFaces"></div></div>
       <div class="drawer" id="oDrawer">
         <button class="drawer-front" id="oDrawerPull" title="pull the drawer"><span class="drawer-handle"></span><span class="drawer-label">LEFTOVERS</span><span class="drawer-count" id="oDrawerCount"></span></button>
         <div class="drawer-inside" id="oDrawerInside" hidden><div class="shelf-items" id="oLeftovers"></div></div>
@@ -77,6 +83,15 @@
     <h3>Leftovers</h3>
     <p class="muted tiny">What got done, newest first. Still on the fridge it was left on, just at the bottom.</p>
     <div id="leftoverList" class="sheet-list"></div>
+  </div>
+</section>
+
+<section class="view" id="gallery">
+  <div class="card gallery-wall">
+    <h3>The gallery</h3>
+    <p class="muted tiny">Every face a magnet has worn, under the fridge it was made for, newest first. A face stays here when its magnet changes it or comes off the board.</p>
+    <div class="row gallery-pick"><span class="lab">Fridge</span><select id="galFridge"><option value="*">every fridge</option></select></div>
+    <div id="galleryWall"></div>
   </div>
 </section>
 
@@ -109,9 +124,19 @@
       <div class="row"><span class="lab">Person</span><input id="housePerson" maxlength="40" placeholder="the person"></div>
       <div class="row"><span class="lab">Partner</span><input id="housePartner" maxlength="40" placeholder="the partner"></div>
       <div class="row"><span class="lab">Milk</span><input id="sourDays" type="number" min="0" step="0.5" style="width:80px"><span class="lab">days before an unpicked choice goes sour</span></div>
+      <div class="row"><span class="lab">Grey</span><input id="greyHours" type="number" min="0.25" step="0.5" style="width:80px"><span class="lab">hours before a quiet magnet goes grey</span></div>
+      <div class="row"><span class="lab">Drawer</span><input id="drawerDays" type="number" min="0.5" step="0.5" style="width:80px"><span class="lab">days before a quiet magnet goes in the drawer</span></div>
+      <div class="row"><label class="row" style="margin:0"><input type="checkbox" id="stickOnStart"> <span class="lab">a session in a fridge's repo folder sticks to that fridge when it starts (another hand of the same partner there moves to the counter)</span></label></div>
       <div class="row"><span class="lab">Notes</span><select id="houseNotesAt"><option value="top">the house's notes above the fridges</option><option value="bottom">below the fridges</option></select></div>
       <div class="row"><span class="lab">Hinge</span><select id="houseHinge"><option value="right">handles on the right (for a left hand)</option><option value="left">handles on the left (for a right hand)</option></select></div>
       <div class="row"><button id="houseGo">save</button><span class="msg" id="houseMsg"></span></div>
+    </div>
+
+    <div class="card">
+      <h3>Backups</h3>
+      <p class="muted tiny">The kitchen snapshots itself like every store in the family: the sheets, the magnets, the art, the faces, the settings and the fonts. Never the GitHub token. A restore is two keys in the yaml and a restart, into an empty kitchen only.</p>
+      <div id="backupRows"><span class="tiny muted">…</span></div>
+      <div class="row"><button id="snapGo">take one now</button><button id="rehearseGo" title="lay the newest out in a scratch folder and check it, without touching the kitchen">rehearse the newest</button><span class="msg" id="backupMsg"></span></div>
     </div>
 
     <div class="card wide">
@@ -143,6 +168,11 @@
   <label class="row top"><span class="lab">List</span><textarea id="lvLines" rows="4" placeholder="optional, one per line. a line that ends  ? yes | no | later  is a choice to pick"></textarea></label>
   <label class="row"><span class="lab">Pictures</span><input id="lvArt" type="file" multiple accept="image/png,image/jpeg,image/gif,image/webp"><span class="tiny muted">optional, 8 MB each. macaroni welcome.</span></label>
   <div class="row"><button class="primary" id="lvGo">Stick it on</button><button id="lvCancel">never mind</button><span class="msg" id="lvMsg"></span></div>
+</dialog>
+
+<dialog id="faceDlg" class="sheet-dlg face-dlg">
+  <button class="sheet-x" id="faceClose" title="close">✕</button>
+  <div id="faceFull"></div>
 </dialog>
 
 <dialog id="sheetDlg" class="sheet-dlg">

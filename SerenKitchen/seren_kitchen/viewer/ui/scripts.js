@@ -160,22 +160,115 @@ function sheetHtml(s, opts = {}) {
 }
 
 function magnetHtml(m, extraClass = "") {
-  const face = m.picture ? `<img src="${m.picture}" alt="${escapeHtml(m.partner)}">` : `<div class="blank">${escapeHtml(m.partner.slice(0, 2))}</div>`;
+  const face = m.picture ? `<img src="${escapeHtml(m.picture)}" alt="${escapeHtml(m.partner)}">` : `<div class="blank">${escapeHtml(m.partner.slice(0, 2))}</div>`;
   const who = m.label || m.partner;
   const tag = m.hand ? `<span class="tag">${escapeHtml(m.hand)}</span>` : "";
   // a magnet with a session wears its state: live, idle, ended (its session ended), missing (gone past the milk days)
   const state = m.state ? ` ${m.state}` : "";
-  const tip = `${who} holds this${m.since ? " since " + m.since.slice(0, 16) : ""}` + (m.state ? ` · ${m.state}` : "") +
+  const tip = (m.taken_over_by && !m.fridge ? `${who} · ${display(m.last)} was taken over by ${m.taken_over_by}${m.taken_over_at ? " at " + m.taken_over_at.slice(0, 16).replace("T", " ") : ""}`
+    : `${who} holds this${m.since ? " since " + m.since.slice(0, 16) : ""}`) + (m.state ? ` · ${m.state}` : "") +
     (m.session ? ` · session ${m.session}` : "") + (m.end_reason ? ` (${m.end_reason})` : "") + ". Click: copy how to start their session.";
-  const at = extraClass === "counter" ? "" : ` style="left:${m.x}px;top:${m.y}px"`;   // on the counter it sits in the row, not at a spot on a door
-  return `<div class="magnet ${extraClass}${state}"${at} title="${escapeHtml(tip)}" data-partner="${escapeHtml(who)}">${face}${tag}</div>`;
+  const loose = extraClass === "counter" || extraClass === "in-drawer";
+  const at = loose ? "" : ` style="left:${m.x}px;top:${m.y}px"`;   // on the counter or in the drawer it sits in the row, not at a spot on a door
+  // a loose magnet on the counter can be put in the drawer
+  const stow = extraClass === "counter" ? `<button class="stow" data-stow="${escapeHtml(who)}" title="put ${escapeHtml(who)} in the drawer">⤓</button>` : "";
+  return `<div class="magnet ${extraClass}${state}"${at} title="${escapeHtml(tip)}" data-partner="${escapeHtml(who)}">${face}${tag}${stow}</div>`;
+}
+// the API names a magnet by partner and hand; the page by its label
+function magnetBy(label) { return (KITCHEN && KITCHEN.magnets || []).find(m => (m.label || m.partner) === label); }
+async function drawerMove(label, away) {
+  const m = magnetBy(label); if (!m) return;
+  try {
+    await api(`/api/magnets/${encodeURIComponent(m.partner)}/drawer`, { method: "POST", body: JSON.stringify({ hand: m.hand || "", away }) });
+    toast(away ? `${label} is in the drawer.` : `${label} is back on the counter.`); await loadWall();
+  } catch (e) { toast(why(e)); }
+}
+async function dropMagnet(label) {
+  const m = magnetBy(label); if (!m) return;
+  if (!confirm(`${label} off the board for good? The faces it wore stay in the gallery.`)) return;
+  try { await api(`/api/magnets/${encodeURIComponent(m.partner)}?hand=${encodeURIComponent(m.hand || "")}`, { method: "DELETE" }); toast(`${label} is gone.`); await loadWall(); }
+  catch (e) { toast(why(e)); }
+}
+
+// ── the magnet drawer: under the counter, closed until pulled ────────────────
+function drawerMagnetHtml(m) {
+  const who = m.label || m.partner;
+  const when = (m.ended_at || m.seen || m.since || "").slice(0, 16).replace("T", " ");
+  const why_ = m.drawer ? "put away" : "quiet for days";
+  const hist = (m.history || []).length;
+  // a magnet in the drawer remembers its fridge: picked up again, it goes straight back
+  const where = m.fridge ? ` · keeps its place on ${display(m.fridge)}` : m.taken_over_by ? ` · ${display(m.last)} taken over by ${m.taken_over_by}` : m.last ? ` · was on ${display(m.last)}` : "";
+  return `<div class="drawer-magnet">${magnetHtml(m, "in-drawer")}` +
+    `<div class="dm-text"><div class="dm-who">${escapeHtml(who)}</div><div class="tiny">${escapeHtml(why_)}${when ? " · " + escapeHtml(when) : ""}${escapeHtml(where)}</div>` +
+    (hist ? `<details class="dm-hist"><summary class="tiny">${hist} earlier session${hist > 1 ? "s" : ""}</summary>${(m.history || []).map(h =>
+      `<button class="small dm-old" data-starter="${escapeHtml(h.starter || "")}" title="copy how to pick this one up again">${h.picture ? `<img src="${escapeHtml(h.picture)}" alt="">` : ""}${escapeHtml((h.session || "").slice(0, 8))} · ${escapeHtml((h.ended_at || h.seen || "").slice(0, 10))}</button>`).join("")}</details>` : "") +
+    `<div class="dm-acts"><button class="small" data-unstow="${escapeHtml(who)}">back on the counter</button><button class="small" data-drop-magnet="${escapeHtml(who)}" title="off the board for good">✕</button></div></div></div>`;
+}
+function paintDrawer(inDrawer) {
+  $("mDrawerCount").textContent = inDrawer.length ? `${inDrawer.length} put away` : "empty";
+  $("mDrawerMagnets").innerHTML = inDrawer.map(drawerMagnetHtml).join("") || `<span class="tiny muted">no old magnets. everyone is somewhere.</span>`;
+  const pulled = localStorage.getItem("kitchen.mdrawer") === "open";
+  $("mDrawerInside").hidden = !pulled; $("mDrawer").classList.toggle("open", pulled);
+  const box = $("mDrawerMagnets");
+  box.querySelectorAll(".magnet").forEach(el => el.onclick = () => copyStarter(el.dataset.partner));
+  box.querySelectorAll("[data-unstow]").forEach(b => b.onclick = () => drawerMove(b.dataset.unstow, false));
+  box.querySelectorAll("[data-drop-magnet]").forEach(b => b.onclick = () => dropMagnet(b.dataset.dropMagnet));
+  box.querySelectorAll("[data-starter]").forEach(b => b.onclick = () => copyText(b.dataset.starter || "(that session left no starter)", "that session's starter"));
+}
+
+// ── faces: the pictures magnets wear, in a strip on a fridge and on the gallery's wall ──
+function faceCardHtml(f, opts = {}) {
+  const when = (f.made || "").slice(0, 10);
+  const now = f.wearing && f.wearing.length ? `<span class="wearing">wearing now</span>` : "";
+  return `<figure class="face-card" data-face="${f.id}" style="--rot:${((f.id.charCodeAt(0) + f.id.charCodeAt(1)) % 7) - 3}deg" title="${escapeHtml(f.label)} · ${escapeHtml(when)}">` +
+    `<img src="${escapeHtml(f.url)}" alt="${escapeHtml(f.label)}" loading="lazy"><figcaption>${escapeHtml(f.label)}<span class="cnt">${escapeHtml(when)}${opts.where && f.fridge ? " · " + escapeHtml(display(f.fridge)) : ""}</span>${now}</figcaption></figure>`;
+}
+let FACES = {};
+function wireFaces(root, faces) {
+  for (const f of faces) FACES[f.id] = f;
+  root.querySelectorAll("[data-face]").forEach(el => el.onclick = () => openFace(el.dataset.face));
+}
+function openFace(id) {
+  const f = FACES[id]; if (!f) return;
+  const worn = f.wearing && f.wearing.length;
+  const span = `${(f.made || "").slice(0, 16).replace("T", " ")}${worn ? ", and it is still worn" : f.until ? " until " + f.until.slice(0, 16).replace("T", " ") : ""}`;
+  // never shrunk: the picture at its own size, fitted only to the screen
+  $("faceFull").innerHTML = `<div class="sheet-top"><span class="tiny">${escapeHtml(f.fridge ? display(f.fridge) : "the counter")} · the gallery</span></div>` +
+    `<div class="note full face-paper"><div class="paper"><div class="who">${escapeHtml(f.label)} wore this ${escapeHtml(span)}</div>` +
+    `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener"><img class="face-big" src="${escapeHtml(f.url)}" alt="${escapeHtml(f.label)}"></a>` +
+    (f.wearing && f.wearing.length ? `<p class="tiny">worn now by ${escapeHtml(f.wearing.join(", "))}</p>` : "") +
+    `<div class="acts main"><button data-unhang="${f.id}" title="out of the gallery; a magnet still wearing it keeps it">take it out of the gallery</button></div></div></div>`;
+  $("faceFull").querySelector("[data-unhang]").onclick = async () => {
+    if (!confirm(`Take ${f.label}'s face out of the gallery? A magnet still wearing it keeps it; otherwise the picture is gone.`)) return;
+    try { await api(`/api/gallery/${f.id}`, { method: "DELETE" }); $("faceDlg").close(); toast("out of the gallery."); await loadWall(); await loadGallery(); }
+    catch (e) { toast(why(e)); }
+  };
+  if (!$("faceDlg").open) $("faceDlg").showModal();
+}
+async function loadGallery() {
+  const pick = $("galFridge");
+  const have = new Set([...pick.options].map(o => o.value));
+  for (const f of (KITCHEN && KITCHEN.fridges) || []) if (!have.has(f.name)) pick.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(f.name)}">${escapeHtml(f.display)}</option>`);
+  if (!have.has("")) pick.insertAdjacentHTML("beforeend", `<option value="">the counter (no fridge)</option>`);
+  let faces;
+  try { faces = await api("/api/gallery" + (pick.value === "*" ? "" : `?fridge=${encodeURIComponent(pick.value)}`)); }
+  catch (e) { $("galleryWall").innerHTML = `<p class="muted">${escapeHtml(why(e))}</p>`; return; }
+  // grouped by fridge, in the wall's order, the counter last
+  const order = ((KITCHEN && KITCHEN.fridges) || []).map(f => f.name).concat([""]);
+  const groups = new Map();
+  for (const f of faces) { const k = f.fridge || ""; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(f); }
+  const keys = [...groups.keys()].sort((a, b) => (order.indexOf(a) + 1 || 999) - (order.indexOf(b) + 1 || 999));
+  $("galleryWall").innerHTML = keys.map(k => `<div class="gallery-group"><h4>${escapeHtml(k ? display(k) : "the counter")}<span class="tiny muted"> · ${groups.get(k).length}</span></h4>` +
+    `<div class="face-strip">${groups.get(k).map(f => faceCardHtml(f)).join("")}</div></div>`).join("")
+    || `<p class="tiny muted">no faces yet. a magnet given a picture hangs it here.</p>`;
+  wireFaces($("galleryWall"), faces);
 }
 
 // ── the wall ─────────────────────────────────────────────────────────────────
 // ── the big fridge: the little fridges are polaroids on its door, the house's own sheets beside them ──
 let DRAG = null;
 function polaroidHtml(f, k, i) {
-  const held = k.magnets.filter(m => m.fridge === f.name);
+  const held = k.magnets.filter(m => m.fridge === f.name && !m.in_drawer);
   const notes = k.doors.filter(s => s.fridge === f.name);
   const facts = f.facts || {}; const b = facts.build || "none";
   const inside = f.counts.shelf + f.counts.crisper;
@@ -184,7 +277,7 @@ function polaroidHtml(f, k, i) {
     `<span class="tape" draggable="true" title="drag to move this fridge"></span>` +
     `<div class="mini" style="${fridgeVars(f, 14)}">` +
       `<div class="mfreezer"><div class="mname">${escapeHtml(f.display)}</div><div class="mfacts">${letters("v" + (facts.release || "—"), f.display.length)} <span class="dot" style="--dot:${BUILD[b] || BUILD.none}"></span></div><span class="mhandle top"></span></div>` +
-      `<div class="mdoor ${bare ? "bare" : ""}"><span class="mhandle"></span>${held.map(m => `<img class="mmagnet" src="${m.picture || ""}" alt="${escapeHtml(m.partner)}" title="${escapeHtml(m.partner)} holds this">`).join("")}` +
+      `<div class="mdoor ${bare ? "bare" : ""}"><span class="mhandle"></span>${held.map(m => `<img class="mmagnet" src="${escapeHtml(m.picture || "")}" alt="${escapeHtml(m.partner)}" title="${escapeHtml(m.partner)} holds this">`).join("")}` +
         notes.slice(0, 3).map((s, j) => `<div class="mnote" style="--r:${(j * 9) % 13 - 6}deg" title="${escapeHtml(s.title)}"></div>`).join("") + `</div>` +
     `</div>` +
     `<figcaption>${escapeHtml(f.display)}<span class="cnt">${f.counts.door} on the door · ${inside} inside · ${f.counts.leftovers} done${f.sour ? " · sour" : ""}</span></figcaption></figure>`;
@@ -227,9 +320,12 @@ function paintWall() {
   });
   $("fzNotes").querySelectorAll("[data-open]").forEach(el => el.onclick = e => { e.stopPropagation(); openFridge(house, true).then(() => openSheet(el.dataset.open)); });
   $("houseNotes").querySelectorAll("[data-open-house]").forEach(b => b.onclick = () => openFridge(house));
-  const loose = k.magnets.filter(m => !m.fridge);
+  // the counter holds the loose magnets someone is still using; the rest are in the drawer under it
+  const loose = k.magnets.filter(m => !m.fridge && !m.in_drawer);
   $("counterMagnets").innerHTML = loose.length ? loose.map(m => magnetHtml(m, "counter")).join("") : `<span class="tiny" style="color:#eee8d8;opacity:.7;font-family:var(--f-hand)">no loose magnets on the counter</span>`;
-  $("counterMagnets").querySelectorAll(".magnet").forEach(el => el.onclick = () => copyStarter(el.dataset.partner));
+  $("counterMagnets").querySelectorAll(".magnet").forEach(el => el.onclick = e => { if (e.target.closest(".stow")) return; copyStarter(el.dataset.partner); });
+  $("counterMagnets").querySelectorAll("[data-stow]").forEach(b => b.onclick = e => { e.stopPropagation(); drawerMove(b.dataset.stow, true); });
+  paintDrawer(k.magnets.filter(m => m.in_drawer));
 }
 
 // ── the polling pair, from the Meninges shell (>= 6.2.0) ─────────────────────
@@ -255,9 +351,11 @@ async function loadWall() {
 function copyStarter(partner) {
   const m = (KITCHEN.magnets || []).find(m => (m.label || m.partner) === partner);
   if (!m) return;
-  const text = m.starter || `(no session starter on ${partner}'s magnet yet)`;
+  copyText(m.starter || `(no session starter on ${partner}'s magnet yet)`, `${partner}'s session starter`);
+}
+function copyText(text, what) {
   (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(
-    () => toast(`${partner}'s session starter copied.`), () => prompt(`${partner}'s session starter:`, text));
+    () => toast(`${what} copied.`), () => prompt(`${what}:`, text));
 }
 
 function toast(text) {
@@ -297,6 +395,12 @@ function paintFridge(f) {
   // a card like every other shelf, opened to pick (10 Nov 2026: the full sheet sat here, huge and not clickable)
   $("oDecisions").innerHTML = waiting.map(s => cardHtml(s)).join("") || `<span class="tiny muted">nothing waiting</span>`;
   $("oCrisper").innerHTML = f.crisper.map(s => cardHtml(s)).join("") || `<span class="tiny muted">no art yet</span>`;
+  // the faces magnets wore here: the newest dozen, the gallery has the rest
+  const faces = f.faces || [];
+  $("oFaces").innerHTML = faces.slice(0, 12).map(x => faceCardHtml(x)).join("") +
+    (faces.length > 12 ? `<button class="small" onclick="showTab('gallery'); $('galFridge').value='${escapeHtml(f.name)}'; loadGallery()">and ${faces.length - 12} more in the gallery →</button>` : "") ||
+    `<span class="tiny muted">no faces here yet</span>`;
+  wireFaces($("oFaces"), faces);
   // the leftovers are a drawer at the bottom: closed until pulled, since that is all that is done and it only grows
   $("oDrawerCount").textContent = f.leftovers.length ? `${f.leftovers.length} done` : "empty";
   $("oLeftovers").innerHTML = (f.leftovers.slice(0, 24).map(s => cardHtml(s)).join("") || `<span class="tiny muted">nothing finished yet</span>`) +
@@ -492,6 +596,7 @@ async function upload(path, file) {
 }
 
 async function loadSettings() {
+  loadBackups();
   try { SETTINGS = await api("/api/settings"); } catch (e) { say("fontMsg", why(e), true); return; }
   const s = SETTINGS, y = s.yaml;
   const slotWords = { name: "the repo names on the freezers", freezer: "the release and build on the freezers", hand: "the notes (the house hand)" };
@@ -521,6 +626,10 @@ async function loadSettings() {
   $("housePerson").value = s.house.person || ""; $("housePerson").placeholder = y.house.person || "the person";
   $("housePartner").value = s.house.partner || ""; $("housePartner").placeholder = y.house.partner || "the partner";
   $("sourDays").value = s.sour_after_days != null ? s.sour_after_days : y.sour_after_days;
+  const life = (KITCHEN && KITCHEN.magnet_life) || {};
+  $("greyHours").value = (s.magnets && s.magnets.grey_after_hours) || life.grey_after_hours || 12;
+  $("drawerDays").value = (s.magnets && s.magnets.drawer_after_days) || life.drawer_after_days || 3;
+  $("stickOnStart").checked = life.stick_on_start !== false;
   $("houseNotesAt").value = s.house.notes_at || "top"; $("houseHinge").value = s.house.hinge || "right";
   // the fridges, in wall order
   const wall = (KITCHEN && KITCHEN.fridges) || [];
@@ -551,7 +660,43 @@ async function loadSettings() {
   $("fridgeRows").querySelectorAll("[data-down]").forEach(b => b.onclick = () => move(b.dataset.down, 1));
 }
 
+// ── backups: the family's snapshots (seren_sinew.stores), shown and asked for from the house ──
+function ago(epoch) {
+  if (!epoch) return "never";
+  const s = Math.max(0, Date.now() / 1000 - Number(epoch)), h = s / 3600;
+  return s < 90 ? "just now" : h < 1 ? `${Math.round(s / 60)} min ago` : h < 48 ? `${Math.round(h)} h ago` : `${Math.round(h / 24)} days ago`;
+}
+function kb(n) { return n == null ? "" : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`; }
+async function loadBackups() {
+  let d;
+  try { d = await api("/stores"); }
+  catch (e) { $("backupRows").innerHTML = `<p class="tiny muted">${/^404/.test(e.message) ? "backups are off (backup.enabled in the yaml)." : escapeHtml(why(e))}</p>`; $("snapGo").disabled = $("rehearseGo").disabled = true; return null; }
+  const sn = d.snapshots || {}, last = sn.latest, reh = d.last_rehearsal;
+  const counts = last && last.counts ? Object.entries(last.counts).map(([k, v]) => `${v} ${k}`).join(", ") : "";
+  $("backupRows").innerHTML =
+    `<div class="row"><span class="lab">Newest</span><span class="tiny">${last ? `${escapeHtml(ago(last.created_at))} · ${escapeHtml(last.reason || "")} · ${escapeHtml(kb(last.bytes))}${counts ? " · " + escapeHtml(counts) : ""}` : "none yet"}</span></div>` +
+    `<div class="row"><span class="lab">Kept</span><span class="tiny">${sn.count || 0} snapshot${sn.count === 1 ? "" : "s"} · the newest ${sn.keep_daily}, then one a week for ${sn.keep_weekly} weeks</span></div>` +
+    `<div class="row"><span class="lab">Where</span><span class="tiny dim">${escapeHtml(sn.dir || "")}</span></div>` +
+    `<div class="row"><span class="lab">Elsewhere</span><span class="tiny">${sn.last_pull ? `a Lodestar took one ${escapeHtml(ago(sn.last_pull.created_at))}` : "no Lodestar has pulled one yet"}</span></div>` +
+    `<div class="row"><span class="lab">Rehearsed</span><span class="tiny">${reh ? `${reh.ok ? "✓ came back whole" : `✗ ${reh.problems} problem${reh.problems === 1 ? "" : "s"}`} · ${escapeHtml(ago(reh.at))}` : "not since the kitchen started"}</span></div>`;
+  $("snapGo").disabled = false; $("rehearseGo").disabled = !last;
+  return d;
+}
+
 function wireSettings() {
+  $("snapGo").onclick = async () => {
+    say("backupMsg", "copying…");
+    try { await api("/stores/snapshot", { method: "POST", body: JSON.stringify({ reason: "by hand, from the house" }) }); say("backupMsg", "snapshot taken."); await loadBackups(); }
+    catch (e) { say("backupMsg", why(e), true); }
+  };
+  $("rehearseGo").onclick = async () => {
+    const d = await loadBackups(); const last = d && d.snapshots && d.snapshots.latest; if (!last) return;
+    say("backupMsg", "laying it out in a scratch folder…");
+    try {
+      const r = await api(`/stores/snapshots/${encodeURIComponent(last.id)}/rehearse`, { method: "POST" });
+      say("backupMsg", r.ok ? "the newest comes back whole." : `it would not come back whole: ${(r.problems || []).join("; ")}`, !r.ok); await loadBackups();
+    } catch (e) { say("backupMsg", why(e), true); }
+  };
   $("newHandGo").onclick = async () => {
     const a = $("newHandName").value.trim(), f = $("newHandFile").files[0];
     if (!a || !f) { say("fontMsg", "a name and a font file, both.", true); return; }
@@ -570,6 +715,7 @@ function wireSettings() {
     try {
       await api("/api/settings/house", { method: "POST", body: JSON.stringify({ person: $("housePerson").value, partner: $("housePartner").value, notes_at: $("houseNotesAt").value, hinge: $("houseHinge").value }) });
       await api("/api/settings/sour", { method: "POST", body: JSON.stringify({ days: Number($("sourDays").value) }) });
+      await api("/api/settings/magnets", { method: "POST", body: JSON.stringify({ grey_after_hours: Number($("greyHours").value), drawer_after_days: Number($("drawerDays").value), stick_on_start: $("stickOnStart").checked }) });
       say("houseMsg", "saved."); await loadWall();
     } catch (e) { say("houseMsg", why(e), true); }
   };
@@ -618,6 +764,13 @@ document.addEventListener("DOMContentLoaded", () => {
     $("oDrawerInside").hidden = !open; $("oDrawer").classList.toggle("open", open);
     try { localStorage.setItem("kitchen.drawer", open ? "open" : "shut"); } catch (_) { /* a private window */ }
   };
+  $("mDrawerPull").onclick = () => {
+    const open = $("mDrawerInside").hidden;
+    $("mDrawerInside").hidden = !open; $("mDrawer").classList.toggle("open", open);
+    try { localStorage.setItem("kitchen.mdrawer", open ? "open" : "shut"); } catch (_) { /* a private window */ }
+  };
+  $("faceClose").onclick = () => $("faceDlg").close();
+  $("galFridge").onchange = loadGallery;
   $("cheese").onclick = cheese;
   $("sheetDlg").addEventListener("close", () => { SHOWN = null; });
   $("freezerNow").onclick = async () => {

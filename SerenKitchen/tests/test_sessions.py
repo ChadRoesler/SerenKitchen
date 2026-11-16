@@ -19,7 +19,8 @@ def test_a_start_takes_the_hands_magnet_and_an_end_marks_it(tmp_path):
     st = Store(tmp_path / "k.json", FRIDGES, sour_after_days=7)
     m = st.session_start(partner="ada", session="aaaa-1", cwd="D:\\work\\SerenCarabiners", box="desk", source="startup")
     assert m["hand"] == "carabiner" and m["label"] == "ada·carabiner"                 # read off the folder, against the fridge's repo
-    assert m["starter"] == "cd D:\\work\\SerenCarabiners\nclaude --resume aaaa-1" and m["state"] == "live" and m["fridge"] is None
+    assert m["starter"] == "cd D:\\work\\SerenCarabiners\nclaude --resume aaaa-1" and m["state"] == "live"
+    assert m["fridge"] == "seren-carabiner" and m["stuck"] == "seren-carabiner"           # its repo's folder: it holds it from minute one
     assert st.session_end(partner="ada", session="nope") is None
     m = st.session_end(partner="ada", session="aaaa-1", reason="prompt_input_exit")          # the context flooded; the hook said so
     assert m["state"] == "ended" and m["end_reason"] == "prompt_input_exit" and m["label"] == "ada·carabiner"
@@ -43,9 +44,9 @@ def test_the_hook_route_and_the_state_on_the_wall(tmp_path):
         r = c.post("/api/sessions", json={"event": "start", "partner": "ada", "harness": "claude", "session": "s-1",
                                           "cwd": "C:\\git\\SerenMemory", "box": "desk", "source": "startup"})
         j = r.json(); say = j.pop("say")
-        assert r.status_code == 200 and j == {"ok": True, "label": "ada·memory", "hand": "memory", "on": None, "state": "live",
+        assert r.status_code == 200 and j == {"ok": True, "label": "ada·memory", "hand": "memory", "on": "seren-memory", "state": "live",
                                               "starter": "cd C:\\git\\SerenMemory\nclaude --resume s-1"}
-        assert say.startswith("The kitchen knows this session as ada·memory.") and 'hand="memory"' in say and "on the counter" in say
+        assert say.startswith("The kitchen knows this session as ada·memory.") and 'hand="memory"' in say and "went straight onto it" in say
         r2 = c.post("/api/sessions", json={"event": "start", "partner": "ada", "session": "s-2", "cwd": "C:\\git\\SerenMemory"})
         assert r2.json()["hand"] == "memory-2" and r2.json()["say"].startswith("Another live session of ada holds memory; the kitchen knows this one as ada·memory-2.")
         c.post("/api/magnets/ada/stick", json={"fridge": "seren-memory", "hand": "memory"})

@@ -146,7 +146,7 @@ def test_the_file_is_whole_and_comes_back_the_same(tmp_path):
     st.stick("ada", "seren-margin")
     st.set_facts("seren-margin", release="5.3.0")
     raw = json.loads(path.read_text(encoding="utf-8"))
-    assert set(raw) == {"facts", "magnets", "sheets"} and s["id"] in raw["sheets"]
+    assert set(raw) == {"facts", "magnets", "sheets", "faces"} and s["id"] in raw["sheets"]
     again = Store(path, default_fridges())
     assert again.sheet(s["id"])["title"] == "remember the milk"
     assert again.magnet("ada")["fridge"] == "seren-margin"

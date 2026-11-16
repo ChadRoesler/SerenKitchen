@@ -36,7 +36,7 @@ class Settings:
         self.path = self.state / "settings.json"
         self._lock = threading.Lock()
         self.data: dict[str, Any] = {"fonts": {"hands": {}}, "github": {}, "house": {}, "fridges": {"order": [], "extra": [], "hidden": [], "overrides": {}},
-                                     "sour_after_days": None}
+                                     "sour_after_days": None, "magnets": {}}
         self._load()
 
     # ── the file ──────────────────────────────────────────────────────────────
@@ -184,6 +184,21 @@ class Settings:
             self._save()
             return dict(self.data["house"])
 
+    def set_magnets(self, grey_after_hours: Optional[float] = None, drawer_after_days: Optional[float] = None,
+                    stick_on_start: Optional[bool] = None) -> dict[str, Any]:
+        """How long a magnet stays bright, how long until it goes in the drawer under the counter, and whether a
+        session in a fridge's repo holds it from its first minute."""
+        with self._lock:
+            cur = self.data.setdefault("magnets", {})
+            if grey_after_hours is not None:
+                cur["grey_after_hours"] = max(0.25, float(grey_after_hours))
+            if drawer_after_days is not None:
+                cur["drawer_after_days"] = max(0.5, float(drawer_after_days))
+            if stick_on_start is not None:
+                cur["stick_on_start"] = bool(stick_on_start)
+            self._save()
+            return dict(cur)
+
     def set_sour(self, days: float) -> float:
         with self._lock:
             self.data["sour_after_days"] = max(0.0, float(days))
@@ -251,4 +266,4 @@ class Settings:
         return {"fonts": {**{s: self.data["fonts"].get(s) for s in FONT_SLOTS}, "hands": dict(self.data["fonts"]["hands"])},
                 "github": {**self.data["github"], "token_set": self.token_set()},
                 "house": dict(self.data["house"]), "fridges": {k: (list(v) if isinstance(v, list) else dict(v)) for k, v in self.data["fridges"].items()},
-                "sour_after_days": self.data.get("sour_after_days")}
+                "sour_after_days": self.data.get("sour_after_days"), "magnets": dict(self.data.get("magnets") or {})}
