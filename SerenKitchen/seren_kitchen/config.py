@@ -182,6 +182,21 @@ class BackupConfig:
         return out
 
 
+@dataclass
+class McpConfig:
+    """The kitchen's own MCP endpoint (/mcp), for a partner in a house with no Workbench. Mounted when the
+    [mcp] extra is installed and this is on. `author` is the one name everything left through it is signed
+    with; blank, it is what the house calls its partner. No tool takes an author, so a tool call cannot sign
+    as the person of the house."""
+    enabled: bool = True
+    author: str = ""
+
+    @classmethod
+    def from_dict(cls, d: Any) -> "McpConfig":
+        d = d if isinstance(d, dict) else {}
+        return cls(enabled=bool(d.get("enabled", True)), author=str(d.get("author") or "").strip()[:40])
+
+
 def _merge_fridges(raw: Any, drop: Any) -> List[Dict[str, Any]]:
     """The family, then the yaml's say: a listed name that exists is recoloured or renamed
     in place, a new one is appended, and `drop` takes names off the wall."""
@@ -215,6 +230,7 @@ class KitchenConfig:
     updates: UpdatesConfig = field(default_factory=UpdatesConfig)
     backup: BackupConfig = field(default_factory=BackupConfig)
     magnets: MagnetsConfig = field(default_factory=MagnetsConfig)
+    mcp: McpConfig = field(default_factory=McpConfig)
 
     @property
     def host(self) -> str:
@@ -285,4 +301,5 @@ def load_config(path: Optional[str] = None) -> KitchenConfig:
         updates=UpdatesConfig.from_dict(data.get("updates")),
         backup=BackupConfig.from_dict(data.get("backup")),
         magnets=MagnetsConfig.from_dict(data.get("magnets")),
+        mcp=McpConfig.from_dict(data.get("mcp")),
     )

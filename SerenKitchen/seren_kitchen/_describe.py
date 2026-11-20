@@ -24,7 +24,8 @@ ACCENT = "#e0514b"
 # HTTP from whoever knows them; a kitchen with no fridges configured still
 # serves its page and says so.
 REQUIRES: tuple = ()
-EXTRAS: tuple = ()
+# mcp: the kitchen's own MCP endpoint at /mcp, for a partner in a house with no Workbench.
+EXTRAS: tuple = ("mcp",)
 
 DESCRIBE = {
     "schema_version": 1,

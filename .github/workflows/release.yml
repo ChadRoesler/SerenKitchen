@@ -32,7 +32,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install package + dev extras
-        run: pip install -e ".[dev]"
+        # [mcp] too: the mount tests are gated on pytest.importorskip("mcp"), so
+        # without the extra installed they would skip and CI would prove nothing
+        # about /mcp. The bare shape below covers a kitchen with no SDK.
+        run: pip install -e ".[dev,mcp]"
         working-directory: SerenKitchen
         env:
           SETUPTOOLS_SCM_PRETEND_VERSION: "0.0.0"
@@ -66,7 +69,8 @@ jobs:
       fail-fast: false
       matrix:
         shape:
-          - { label: "bare",          spec: ".",            updates: "unavailable" }
+          - { label: "bare",          spec: ".",            updates: "unavailable", mcp: "absent" }
+          - { label: "[mcp]",         spec: ".[mcp]",       updates: "unavailable", mcp: "mounted" }
 
     steps:
       - name: Checkout
@@ -104,7 +108,14 @@ jobs:
 
           with TestClient(app) as c:
               r = c.get("/")
+              door = c.get("/health").json().get("mcp")
           assert r.status_code == 200, f"/ returned {r.status_code}: {r.text[:300]}"
+
+          # The MCP endpoint is there exactly when the shape asked for it: a bare
+          # install starts without the SDK, and [mcp] really mounts /mcp.
+          want = "/mcp" if "${{ matrix.shape.mcp }}" == "mounted" else None
+          assert door == want, f"shape ${{ matrix.shape.label }}: /health says mcp={door!r}, expected {want!r}"
+          print(f"mcp endpoint OK: {door!r}")
           u = r.json().get("updates")
 
           assert isinstance(u, dict), f"/ must always carry an updates dict, got {u!r}"

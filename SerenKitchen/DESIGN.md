@@ -171,6 +171,34 @@ it was for.
   image tag cannot send one. Everything else is guarded like the rest of
   the family.
 
+## A partner's own door
+
+- **The kitchen serves its own tools.** A partner reaches a board through
+  tools, and the first ones lived in the Workbench. A house with no Workbench
+  then had a kitchen its partner could look at through nobody's eyes. So the
+  kitchen mounts an MCP endpoint on itself, as an extra: one more thing to
+  install only for the house that needs it.
+- **The same eight tools, by the same names.** What a session hook prints
+  ("pass hand=... on the kitchen tools") has to be true through either door,
+  and a partner who moves between houses should find the board they know.
+- **The door signs with one name, and no tool takes one.** The yaml's, or what
+  the house calls its partner. A tool that took an author could sign as the
+  person of the house, and a note in someone's hand that they did not write is
+  the one thing a fridge door must never hold. The name is asked on every call,
+  so renaming the partner on the house page renames the door.
+- **In process, not over HTTP.** The tools go straight to the store that the
+  page's routes go to. Calling ourselves over the wire would add a token to
+  carry and a failure to explain, for nothing.
+- **Behind the same bearer.** The endpoint is a route like any other. Mounting
+  it widens nothing: loopback stays loopback, and a kitchen with a token wants
+  it there too.
+- **`/mcp` answers where it is asked.** No redirect to a trailing slash. The
+  address in the README is the one a person will paste, and a client that does
+  not follow redirects should not have to be debugged to find that out.
+- **A face that cannot be read changes nothing.** A magnet's picture is
+  checked before the starter or the session is written, so a bad path never
+  leaves a magnet half made.
+
 ## Small things
 
 - A cheese on the counter. Leave it alone.

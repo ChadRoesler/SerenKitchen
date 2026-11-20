@@ -24,6 +24,15 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "anyio>=4.0"]
+mcp = [
+    # The kitchen's own MCP endpoint at /mcp, for a partner in a house with no Workbench. Without this
+    # extra the mount is skipped with one log line and the kitchen is the page and the HTTP API.
+    #
+    # <2 on purpose: mcp 2.0 removed mcp.server.fastmcp, which seren_kitchen/mcp/server.py is written
+    # against, and a bare `mcp>=1.0` would resolve to it and leave /mcp quietly absent. Lift the ceiling
+    # together with the rest of the family's mounts, when they move to the 2.x server class.
+    "mcp>=1.0,<2",
+]
 
 [project.scripts]
 seren-kitchen = "seren_kitchen.__main__:main"

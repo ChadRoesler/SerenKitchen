@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
@@ -55,6 +55,17 @@ def _settings(request: Request) -> Settings:
 def _life(st: Store) -> dict[str, Any]:
     """A magnet's life as the house has it set."""
     return {"grey_after_hours": st.grey_after / 3600.0, "drawer_after_days": st.drawer_after / 86400.0, "stick_on_start": st.stick_on_start}
+
+
+def _house(se: Settings, cfg: KitchenConfig) -> dict[str, str]:
+    """What the house calls its person and its partner: the page's say first, the yaml's second, blank when neither."""
+    sh = se.data.get("house") or {}
+    return {"person": sh.get("person") or cfg.house.person, "partner": sh.get("partner") or cfg.house.partner}
+
+
+def _signs_as(se: Settings, cfg: KitchenConfig) -> str:
+    """The one name the MCP tools sign with: the yaml's mcp.author, else the house's partner."""
+    return cfg.mcp.author or _house(se, cfg)["partner"] or "the partner"
 
 
 def _refuse(exc: ValueError) -> HTTPException:
@@ -137,8 +148,30 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
         # snapshots on the kitchen's own schedule, so a kitchen with no Lodestar is still backed up
         snaps = asyncio.create_task(snapshot_loop(lambda: app.state.stores, cfg.backup.every_hours)) \
             if (app.state.stores is not None and cfg.backup.every_hours > 0) else None
+        # The kitchen's own door for a partner in a house with no Workbench: /mcp, the tools on this store. Only
+        # with the [mcp] extra installed; without it, or if the mount fails, the kitchen is the page and the API.
+        mcp_server = None
+        app.state.mcp_path = None
+        if cfg.mcp.enabled:
+            try:
+                from .mcp.server import mount_mcp_routes
+                from .mcp.tools import KitchenToolImpl
+                mcp_server = mount_mcp_routes(app, KitchenToolImpl(app.state.store, author=lambda: _signs_as(st, cfg),
+                                                                   house=lambda: _house(st, cfg)))
+                diag(f"[seren-kitchen] MCP at {app.state.mcp_path}, signing as {_signs_as(st, cfg)!r}")
+            except ImportError as exc:
+                diag(f"[seren-kitchen] no MCP endpoint ({exc}): pip install 'seren-kitchen[mcp]' for one")
+            except Exception as exc:  # noqa: BLE001 - a door that will not hang never takes the kitchen down
+                app.state.mcp_path = None
+                diag(f"[seren-kitchen] MCP mount failed: {exc!r}; continuing without it")
         try:
-            yield
+            # the streamable-HTTP transport's task group lives in the session manager, and a mounted sub-app's own
+            # lifespan never fires, so it is run here; with nothing mounted the stack is empty
+            async with AsyncExitStack() as stack:
+                manager = getattr(mcp_server, "session_manager", None)
+                if manager is not None:
+                    await stack.enter_async_context(manager.run())
+                yield
         finally:
             for t in (task, snaps):
                 if t is not None:
@@ -146,6 +179,7 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
 
     app = FastAPI(title="SerenKitchen", version=APP_VERSION, lifespan=lifespan)
     app.state.cfg = cfg
+    app.state.mcp_path = None
 
     # Open on loopback with no token, like the rest of the family; enforce_server refuses a wider
     # bind without one before this ever runs. /api/fonts is public: a stylesheet cannot send a bearer.
@@ -189,11 +223,12 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
             updates = {"status": "unavailable", "distribution": NAME, "installed": APP_VERSION, "latest": None,
                        "update_available": False, "checked_at": None,
                        "detail": f"update checking could not be constructed ({exc}): pip install -U seren-kitchen"}
-        return {"service": NAME, "version": APP_VERSION, "viewer": "/viewer", "updates": updates}
+        return {"service": NAME, "version": APP_VERSION, "viewer": "/viewer", "mcp": request.app.state.mcp_path, "updates": updates}
 
     @app.get("/health")
-    async def health():
-        return {"ok": True, "service": NAME, "version": APP_VERSION, "features": FEATURES}
+    async def health(request: Request):
+        # `mcp` is where the kitchen's own MCP endpoint is mounted, or null when it is not (no [mcp] extra, or off)
+        return {"ok": True, "service": NAME, "version": APP_VERSION, "features": FEATURES, "mcp": request.app.state.mcp_path}
 
     # ── the wall ──────────────────────────────────────────────────────────────
     @app.get("/api/kitchen")
@@ -203,8 +238,7 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
         st = _store(request); se = _settings(request)
         hands = set(se.hands()) | {a for a in cfg.fonts.hands if cfg.fonts.hand_for(a) and cfg.fonts.hand_for(a).is_file()}
         sh = se.data.get("house") or {}
-        house = {"person": sh.get("person") or cfg.house.person, "partner": sh.get("partner") or cfg.house.partner,
-                 "notes_at": sh.get("notes_at") or "top", "hinge": sh.get("hinge") or "right", "fridge": HOUSE_FRIDGE}
+        house = {**_house(se, cfg), "notes_at": sh.get("notes_at") or "top", "hinge": sh.get("hinge") or "right", "fridge": HOUSE_FRIDGE}
         return JSONResponse({"fridges": st.fridges(), "magnets": st.magnets(),
                              "doors": st.sheets(place="door"), "kinds": list(KINDS), "places": list(PLACES),
                              "fonts": {slot: bool(se.font_file(slot) or cfg.fonts.path(slot)) for slot in FONT_SLOTS},
@@ -224,7 +258,7 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
     async def settings_view(request: Request):
         """Everything the page can change, and what the yaml gave as the floor. Never the token."""
         se = _settings(request)
-        return {**se.view(), "yaml": {"fonts": {s: bool(cfg.fonts.path(s)) for s in FONT_SLOTS}, "hands": sorted(cfg.fonts.hands),
+        return {**se.view(), "mcp": {"path": request.app.state.mcp_path, "signs_as": _signs_as(se, cfg)}, "yaml": {"fonts": {s: bool(cfg.fonts.path(s)) for s in FONT_SLOTS}, "hands": sorted(cfg.fonts.hands),
                                       "github": {"interval_minutes": cfg.github.interval_minutes, "enabled": cfg.github.enabled,
                                                  "token_env": cfg.github.token_env, "token_env_set": bool(token_from_env(cfg.github.token_env))},
                                       "house": {"person": cfg.house.person, "partner": cfg.house.partner}, "sour_after_days": cfg.sour_after_days,

@@ -4,7 +4,7 @@ The kitchen: a fridge per Seren app, magnets for whoever holds it, and the notes
 we leave each other. Part of [Seren](https://github.com/ChadRoesler).
 
 ```
-pip install seren-kitchen
+pip install seren-kitchen          # or "seren-kitchen[mcp]": the same, plus tools for a partner at /mcp
 seren-kitchen                      # http://127.0.0.1:7431/viewer
 seren-kitchen --describe           # its identity card, stdlib only
 ```
@@ -86,6 +86,45 @@ token named by `github.token_env` lifts GitHub's ceiling.
 A refusal is a `400` with the reason in plain words. Writes are guarded by the
 bearer like the rest of the family; loopback with no token is open, and a wider
 bind without one is refused at startup.
+
+## A partner's own door: MCP
+
+A partner reaches the kitchen through tools. A house that runs a Workbench has
+them there already. A house that does not installs the extra, and the kitchen
+serves them itself:
+
+```
+pip install "seren-kitchen[mcp]"
+seren-kitchen                      # ... and an MCP endpoint at http://127.0.0.1:7431/mcp
+```
+
+Point any MCP client that speaks streamable HTTP at `/mcp` (with or without a
+trailing slash; nothing redirects). It is the same process and the same port,
+so it is behind the same bearer: a kitchen with a token wants
+`Authorization: Bearer <token>` on `/mcp` too. `GET /health` says where the
+endpoint is (`"mcp": "/mcp"`), or `null` when there is none.
+
+```
+kitchen_wall      the wall at a glance: fridges, who holds them, the doors, what waits on a pick, my magnets
+kitchen_fridge    one fridge opened: door, shelf, crisper, leftovers
+kitchen_sheet     one sheet in full, with what is stuck on it
+kitchen_leave     leave a sheet on a fridge
+kitchen_reply     stick a note on a sheet, or under one of its lines
+kitchen_tick      tick or untick lines, pick a choice, say a sheet is done
+kitchen_magnet    my magnet: its starter, my face, and the session that carries it
+kitchen_stick     put my magnet on a fridge (I hold that repo now), or back on the counter
+```
+
+**Who signs.** No tool takes an author. Everything left through `/mcp` is signed
+with one name: `mcp.author` in the yaml, or, when that is blank, what the house
+calls its partner (set on the house page). A tool call cannot sign as the person
+of the house. Two sessions of one partner tell themselves apart with `hand`, as
+everywhere else on the board.
+
+`mcp.enabled: false` leaves the endpoint off with the extra installed.
+`SEREN_KITCHEN_MCP_MOUNT` moves it, and `SEREN_KITCHEN_MCP_ALLOWED_HOSTS`
+(comma-separated `host:port`) turns on the SDK's host check, which is off by
+default like the rest of the family's.
 
 ## Configuration
 

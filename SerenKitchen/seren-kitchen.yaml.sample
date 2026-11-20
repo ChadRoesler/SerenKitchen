@@ -61,5 +61,12 @@ sour_after_days: 7
 #   # restore_from: ~/seren-kitchen/backups/seren-kitchen/20261116-120000
 #   # restore_reason: the old box died
 
+# The kitchen's own MCP endpoint, for a partner in a house with no Workbench: the board as eight tools at
+# /mcp, on this same port and behind the same bearer. Only there with the extra: pip install "seren-kitchen[mcp]".
+# Everything left through it is signed with ONE name, and no tool takes an author.
+# mcp:
+#   enabled: true
+#   author: ada              # blank: what the house calls its partner (house.partner, or the house page)
+
 updates:
   enabled: true
