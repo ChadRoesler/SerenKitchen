@@ -204,7 +204,7 @@ class KitchenToolImpl:
                 "waiting_on_a_pick": [{"id": s.get("id"), "fridge": s.get("fridge"), "title": s.get("title"), "by": _by(s),
                                        **({"sour": True} if s.get("sour") else {})} for s in st.sheets(waiting=True)]}
 
-    def kitchen_fridge(self, fridge: Annotated[str, Field(description="The fridge, by its slug (seren-memory, seren-project...).")],
+    def kitchen_fridge(self, fridge: Annotated[str, Field(description="The fridge, by its slug, as kitchen_wall lists them.")],
                        leftovers: Annotated[bool, Field(description="Also list the finished sheets. Default false: only how many.")] = False) -> dict[str, Any]:
         """One fridge opened: the sheets on its door, on its shelf (lists), in its crisper (pictures) and how many are in its leftovers (finished), plus who holds it. Sheets come with their lines, choices and picks; long notes are cut short, kitchen_sheet has the whole thing."""
         st = self.store

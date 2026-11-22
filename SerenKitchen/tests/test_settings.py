@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from seren_meninges import ServerConfig
 
+from conftest import WALL
 from seren_kitchen.app import create_app
 from seren_kitchen.config import KitchenConfig
 
@@ -12,7 +13,7 @@ TTF = b"\x00\x01\x00\x00" + b"\x00" * 60     # the first four bytes of a TrueTyp
 
 
 def client(tmp_path):
-    cfg = KitchenConfig(server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "s"))
+    cfg = KitchenConfig(fridges=WALL, server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "s"))
     return TestClient(create_app(cfg, run_freezer=False))
 
 
@@ -83,12 +84,12 @@ def test_the_house_and_the_milk(tmp_path):
     with client(tmp_path) as c:
         assert c.post("/api/settings/house", json={"person": "alex", "partner": "ada"}).json() == {"person": "alex", "partner": "ada"}
         h = c.get("/api/kitchen").json()["house"]
-        assert h["person"] == "alex" and h["partner"] == "ada" and h["notes_at"] == "top" and h["hinge"] == "right" and h["fridge"] == "seren-project"
+        assert h["person"] == "alex" and h["partner"] == "ada" and h["notes_at"] == "top" and h["hinge"] == "right" and h["fridge"] == "house"
         assert c.post("/api/settings/house", json={"notes_at": "bottom", "hinge": "left"}).status_code == 200
         h = c.get("/api/kitchen").json()["house"]
         assert h["notes_at"] == "bottom" and h["hinge"] == "left"
         assert c.post("/api/settings/house", json={"hinge": "upside-down"}).status_code == 400
-        assert "seren-project" in [f["name"] for f in c.get("/api/kitchen").json()["fridges"]]   # every kitchen has a House
+        assert "house" in [f["name"] for f in c.get("/api/kitchen").json()["fridges"]]   # every kitchen has a House
         assert c.post("/api/settings/sour", json={"days": 3}).json()["sour_after_days"] == 3
         assert c.get("/api/kitchen").json()["sour_after_days"] == 3
         assert c.post("/api/settings/sour", json={"days": "soon"}).status_code == 400

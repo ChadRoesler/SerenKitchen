@@ -20,22 +20,23 @@ server:
 #   hands:
 #     alex: ~/seren-kitchen/AlexHand.ttf      # a sheet signed "alex" is drawn in this
 
-# Whose house this is: the names the page puts on "to the person" and "to the partner".
+# Whose house this is: the names the page puts on "to the person" and "to the partner",
+# and the slug of the house's own fridge (the big fridge the wall is drawn on; always there).
 # house:
 #   person: alex
 #   partner: ada
+#   fridge: house
 
-# The wall starts as the whole Seren family, each fridge in its app's own colour.
-# Add a fridge, recolour one, or take one down:
+# The kitchen ships knowing no repos: the wall is the house's fridge and whatever is listed
+# here or added on the house page. A fridge with a repo knows that repo's folder: a session
+# started there holds it. A name listed twice is the first one changed by the second.
 # fridges:
 #   - name: my-side-project
 #     display: Side Project
 #     group: other
 #     accent: "#7fd1c1"
 #     repo: me/side-project
-#   - name: seren-theatre
-#     accent: "#8a3a33"       # a lighter wine
-# drop: [seren-carabiner]
+# drop: [my-side-project]     # off the wall, its sheets kept for when it is back
 
 # A decision nobody has picked in this many days goes off like milk.
 sour_after_days: 7
@@ -43,10 +44,13 @@ sour_after_days: 7
 # A magnet's life, as defaults for a new kitchen (the house page changes them after). Bright while its session
 # was seen within grey_after_hours; grey after that (or once it ends), and it stays where it is; in the drawer under
 # the counter once quiet past drawer_after_days. A session in a folder that IS a fridge's repo sticks to it on start.
+# trim_prefix: a prefix every fridge of the house shares, left off the hand a session takes from its repo
+# (fridge acme-billing, prefix acme-: the hand is billing). Blank: the hand is the fridge's whole name.
 # magnets:
 #   grey_after_hours: 12
 #   drawer_after_days: 3
 #   stick_on_start: true
+#   trim_prefix: acme-
 
 # Snapshots of the kitchen (seren_sinew.stores): kitchen.json, the settings, the art, the faces, the fonts.
 # Never the GitHub token. Blank dir = `backups` beside state_dir.

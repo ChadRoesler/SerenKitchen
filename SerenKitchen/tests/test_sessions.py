@@ -6,8 +6,9 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from seren_meninges import ServerConfig
 
+from conftest import PREFIX, WALL
 from seren_kitchen.app import create_app
-from seren_kitchen.config import KitchenConfig
+from seren_kitchen.config import KitchenConfig, MagnetsConfig
 from seren_kitchen.store import Store
 
 FRIDGES = [{"name": "seren-memory", "display": "Memory", "repo": "someone/SerenMemory"},
@@ -16,7 +17,7 @@ FRIDGES = [{"name": "seren-memory", "display": "Memory", "repo": "someone/SerenM
 
 
 def test_a_start_takes_the_hands_magnet_and_an_end_marks_it(tmp_path):
-    st = Store(tmp_path / "k.json", FRIDGES, sour_after_days=7)
+    st = Store(tmp_path / "k.json", FRIDGES, sour_after_days=7, trim_prefix=PREFIX)
     m = st.session_start(partner="ada", session="aaaa-1", cwd="D:\\work\\SerenCarabiners", box="desk", source="startup")
     assert m["hand"] == "carabiner" and m["label"] == "ada·carabiner"                 # read off the folder, against the fridge's repo
     assert m["starter"] == "cd D:\\work\\SerenCarabiners\nclaude --resume aaaa-1" and m["state"] == "live"
@@ -30,7 +31,7 @@ def test_a_start_takes_the_hands_magnet_and_an_end_marks_it(tmp_path):
 
 
 def test_two_live_sessions_in_one_folder_are_numbered(tmp_path):
-    st = Store(tmp_path / "k.json", FRIDGES)
+    st = Store(tmp_path / "k.json", FRIDGES, trim_prefix=PREFIX)
     st.session_start(partner="ada", session="one", cwd="/home/x/SerenMemory")
     m = st.session_start(partner="ada", session="two", cwd="/home/x/SerenMemory")
     assert m["hand"] == "memory-2" and {x["label"] for x in st.magnets()} == {"ada·memory", "ada·memory-2"}
@@ -39,7 +40,7 @@ def test_two_live_sessions_in_one_folder_are_numbered(tmp_path):
 
 
 def test_the_hook_route_and_the_state_on_the_wall(tmp_path):
-    cfg = KitchenConfig(server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "s"))
+    cfg = KitchenConfig(magnets=MagnetsConfig(trim_prefix=PREFIX), fridges=WALL, server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "s"))
     with TestClient(create_app(cfg, run_freezer=False)) as c:
         r = c.post("/api/sessions", json={"event": "start", "partner": "ada", "harness": "claude", "session": "s-1",
                                           "cwd": "C:\\git\\SerenMemory", "box": "desk", "source": "startup"})
@@ -68,12 +69,12 @@ def test_the_folder_is_read_whichever_box_wrote_the_path():
     from seren_kitchen.store import _folder
     assert _folder("D:\\work\\SerenCarabiners") == _folder("/home/x/SerenCarabiners/") == _folder("D:/work\\SerenCarabiners") == "SerenCarabiners"
     assert _folder("") == "" and _folder("D:\\") == "D:"
-    st = Store(__import__("pathlib").Path(__import__("tempfile").mkdtemp()) / "k.json", FRIDGES)
+    st = Store(__import__("pathlib").Path(__import__("tempfile").mkdtemp()) / "k.json", FRIDGES, trim_prefix=PREFIX)
     assert st.hand_for("C:\\git\\SerenMemory") == "memory" and st.hand_for("D:\\serenDaemon\\SerenCore") == "serencore"
 
 
 def test_a_session_resumed_from_another_folder_keeps_its_magnet(tmp_path):
-    st = Store(tmp_path / "k.json", FRIDGES)
+    st = Store(tmp_path / "k.json", FRIDGES, trim_prefix=PREFIX)
     st.session_start(partner="ada", session="s-1", cwd="D:\\work\\SerenCarabiners", box="desk")
     st.stick("ada", "seren-carabiner", hand="carabiner")
     m = st.session_start(partner="ada", session="s-1", cwd="D:\\work", box="desk", source="resume")   # resumed from the parent folder
@@ -84,7 +85,7 @@ def test_a_session_resumed_from_another_folder_keeps_its_magnet(tmp_path):
 
 
 def test_an_end_ends_every_carrier_and_a_clear_keeps_the_seat(tmp_path):
-    st = Store(tmp_path / "k.json", FRIDGES)
+    st = Store(tmp_path / "k.json", FRIDGES, trim_prefix=PREFIX)
     st.session_start(partner="ada", session="s-1", cwd="D:\\work", box="desk", hand="kitchen")
     st.stick("ada", "seren-project", hand="kitchen")
     st.set_magnet("ada", hand="work"); st._data["magnets"]["ada·work"]["session"] = "s-1"      # an older kitchen left two

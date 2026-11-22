@@ -9,8 +9,9 @@ import json
 from fastapi.testclient import TestClient
 from seren_meninges import ServerConfig
 
+from conftest import PREFIX, WALL
 from seren_kitchen.app import create_app
-from seren_kitchen.config import KitchenConfig
+from seren_kitchen.config import KitchenConfig, MagnetsConfig
 from seren_kitchen.store import Store
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"a face" * 10
@@ -23,7 +24,7 @@ def url(data: bytes) -> str:
 
 
 def store(tmp_path) -> Store:
-    return Store(tmp_path / "kitchen.json", FRIDGES)
+    return Store(tmp_path / "kitchen.json", FRIDGES, trim_prefix=PREFIX)
 
 
 def test_a_face_is_a_file_and_the_json_only_points_at_it(tmp_path):
@@ -80,7 +81,7 @@ def test_one_face_on_many_magnets_hangs_once_and_old_duplicates_collapse(tmp_pat
     mags = {f"wren·h{i}": {"partner": "wren", "hand": f"h{i}", "label": f"wren·h{i}", "starter": "", "picture": url(PNG),
                            "fridge": None, "x": 1, "y": 2, "since": f"2026-11-0{i + 1}T10:00:00"} for i in range(5)}
     p.write_text(json.dumps({"facts": {}, "sheets": {}, "magnets": mags}), encoding="utf-8")
-    (f,) = Store(p, FRIDGES).faces()                                               # five hands, one picture, one place
+    (f,) = Store(p, FRIDGES, trim_prefix=PREFIX).faces()                                               # five hands, one picture, one place
     assert f["made"] == "2026-11-01T10:00:00" and len(f["wearing"]) == 5
     # a gallery an earlier build hung twice collapses into the first, open if either copy was
     raw = json.loads(p.read_text(encoding="utf-8"))
@@ -88,7 +89,7 @@ def test_one_face_on_many_magnets_hangs_once_and_old_duplicates_collapse(tmp_pat
     raw["faces"][f["id"]]["until"] = "2026-11-05T00:00:00"
     raw["faces"]["dup000000000"] = {k: v for k, v in dup.items() if k not in ("url", "wearing")}
     p.write_text(json.dumps(raw), encoding="utf-8")
-    (f2,) = Store(p, FRIDGES).faces()
+    (f2,) = Store(p, FRIDGES, trim_prefix=PREFIX).faces()
     assert f2["id"] == f["id"] and f2["until"] is None
 
 
@@ -97,13 +98,13 @@ def test_a_kitchen_from_before_moves_its_faces_out_and_hangs_them(tmp_path):
     p.write_text(json.dumps({"facts": {}, "sheets": {}, "magnets": {"wren": {
         "partner": "wren", "hand": "", "label": "wren", "starter": "", "picture": url(PNG), "fridge": "seren-memory",
         "x": 1, "y": 2, "since": "2026-11-01T10:00:00"}}}), encoding="utf-8")
-    st = Store(p, FRIDGES)
+    st = Store(p, FRIDGES, trim_prefix=PREFIX)
     m = st.magnet("wren")
     assert m["picture"].startswith("/api/faces/") and "base64" not in p.read_text(encoding="utf-8")
     (f,) = st.faces()
     assert f["fridge"] == "seren-memory" and f["made"] == "2026-11-01T10:00:00" and f["wearing"] == ["wren"]
     # and a second load does not hang it twice
-    assert len(Store(p, FRIDGES).faces()) == 1
+    assert len(Store(p, FRIDGES, trim_prefix=PREFIX).faces()) == 1
 
 
 def ago(hours: float) -> str:
@@ -199,7 +200,7 @@ def test_a_magnet_remembers_the_sessions_it_carried(tmp_path):
 
 
 def test_faces_gallery_and_drawer_over_http(tmp_path):
-    cfg = KitchenConfig(server=ServerConfig(host="127.0.0.1", port=7431, bearer_token="tok"), state_dir=str(tmp_path / "s"))
+    cfg = KitchenConfig(magnets=MagnetsConfig(trim_prefix=PREFIX), fridges=WALL, server=ServerConfig(host="127.0.0.1", port=7431, bearer_token="tok"), state_dir=str(tmp_path / "s"))
     auth = {"Authorization": "Bearer tok"}
     with TestClient(create_app(cfg, run_freezer=False)) as c:
         m = c.post("/api/magnets", json={"partner": "wren", "hand": "kitchen", "picture": url(PNG)}, headers=auth).json()
@@ -221,7 +222,7 @@ def test_faces_gallery_and_drawer_over_http(tmp_path):
 
 def test_stick_on_start_takes_the_repo_and_says_who_had_it(tmp_path):
     st = Store(tmp_path / "kitchen.json", [{"name": "seren-kitchen", "display": "Kitchen", "repo": "me/SerenKitchen"},
-                                           {"name": "seren-memory", "display": "Memory"}])
+                                           {"name": "seren-memory", "display": "Memory"}], trim_prefix=PREFIX)
     a = st.session_start(partner="wren", session="s1", cwd="D:/x/SerenKitchen")
     assert a["fridge"] == "seren-kitchen" and a["took_from"] == []
     b = st.session_start(partner="wren", session="s2", cwd="D:/x/SerenKitchen")                # s1 is busy: s2 is kitchen-2
@@ -260,7 +261,7 @@ def test_a_touch_keeps_a_session_bright_and_tells_it_once_when_it_was_taken_over
 
 
 def test_touch_over_http_and_the_magnet_life_settings(tmp_path):
-    cfg = KitchenConfig(server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "s"))
+    cfg = KitchenConfig(magnets=MagnetsConfig(trim_prefix=PREFIX), fridges=WALL, server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "s"))
     with TestClient(create_app(cfg, run_freezer=False)) as c:
         c.post("/api/sessions", json={"event": "start", "partner": "wren", "session": "s1", "hand": "kitchen"})
         r = c.post("/api/sessions", json={"event": "touch", "partner": "wren", "session": "s1"})

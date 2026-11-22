@@ -7,6 +7,7 @@ import inspect
 
 import pytest
 
+from conftest import PREFIX
 from seren_kitchen.mcp.tools import MAX_FACE_BYTES, TOOL_NAMES, KitchenToolImpl
 from seren_kitchen.store import KitchenError, Store
 
@@ -15,7 +16,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 24
 
 def kitchen(tmp_path, author="ada"):
     st = Store(tmp_path / "k.json", [{"name": "seren-memory", "display": "Memory", "repo": "someone/SerenMemory"},
-                                     {"name": "seren-carabiner", "display": "Carabiner", "repo": "someone/SerenCarabiners"}])
+                                     {"name": "seren-carabiner", "display": "Carabiner", "repo": "someone/SerenCarabiners"}], trim_prefix=PREFIX)
     who = {"name": author}
     return KitchenToolImpl(st, author=lambda: who["name"], house=lambda: {"person": "alex", "partner": "ada"}), st, who
 

@@ -138,6 +138,24 @@ it was for.
 - **The hinge is a setting.** Handles on the right suit a left hand; a
   right-handed house flips them.
 
+## Whose kitchen it is
+
+- **A kitchen ships knowing no repos.** It began as one family's board, with
+  that family's apps on the wall from the first minute, and the first house
+  that was not that family had to cut them out by hand. A wall is something a
+  house fills, so a new one is a single fridge with a note on it, and every
+  other fridge is one the house put there.
+- **The house's own fridge is always there.** It is the big fridge the page is
+  drawn on, so the yaml cannot forget it and the page cannot hide it. The house
+  names it, because a kitchen that has lived under one name should not have to
+  move its notes to a new one.
+- **A hand is the fridge's name, unless the house says its fridges share a
+  prefix.** Guessing a prefix from the names on the wall would rename every
+  hand the day someone adds a fridge that does not share it.
+- **A sheet whose fridge left the wall waits.** Nothing is thrown out because a
+  yaml changed: the sheet is kept, left out of every list, counted on the
+  settings and in the log at startup, and back the moment its fridge is.
+
 ## Where things live
 
 - **One JSON file, written whole through a rename.** A kitchen holds a few

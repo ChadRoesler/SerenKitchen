@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from seren_meninges import ServerConfig
 
-from seren_kitchen._constellation import default_fridges
+from conftest import WALL
 from seren_kitchen.app import create_app
 from seren_kitchen.config import GithubConfig, KitchenConfig
 from seren_kitchen.freezer import Freezer
@@ -45,7 +45,7 @@ class FakeHub:
         return httpx.Response(404, json={"message": "Not Found"})
 
 
-FRIDGES = [f for f in default_fridges() if f["name"] in ("seren-memory", "seren-sinew", "seren-theatre", "seren-loci")]
+FRIDGES = [f for f in WALL if f["name"] in ("seren-memory", "seren-sinew", "seren-theatre", "seren-loci")]
 
 
 @pytest.mark.anyio

@@ -22,7 +22,7 @@ from seren_sinew.request_log import RequestLoggingMiddleware
 from . import __version__ as APP_VERSION
 from ._describe import ACCENT, NAME
 from ._diag import diag
-from .config import KitchenConfig, load_config
+from .config import KitchenConfig, house_fridge, load_config
 from .freezer import Freezer, token_from_env
 from .settings import FONT_SLOTS, Settings
 from .store import KINDS, PLACES, KitchenError, Store
@@ -40,8 +40,6 @@ MAX_ART = 8 * 1024 * 1024
 FEATURES = ["fridges", "magnets", "sheets", "shelves", "decisions", "leftovers", "fonts", "replies", "freezer", "art", "settings", "big-fridge",
             "faces", "gallery", "magnet-drawer", "stores"]
 FACE_TYPES = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
-# the house's own fridge: its sheets go on the big fridge's door and freezer, not on a polaroid
-HOUSE_FRIDGE = "seren-project"
 
 
 def _store(request: Request) -> Store:
@@ -55,6 +53,15 @@ def _settings(request: Request) -> Settings:
 def _life(st: Store) -> dict[str, Any]:
     """A magnet's life as the house has it set."""
     return {"grey_after_hours": st.grey_after / 3600.0, "drawer_after_days": st.drawer_after / 86400.0, "stick_on_start": st.stick_on_start}
+
+
+def _wall(se: Settings, cfg: KitchenConfig) -> list[dict[str, Any]]:
+    """Every fridge on the wall: the yaml's, then the page's, and always the house's own. Its sheets go on the big
+    fridge's door and freezer, not on a polaroid, so it is put back if the yaml left it out or the page hid it."""
+    fridges = se.effective_fridges(cfg.fridges)
+    if not any(f["name"] == cfg.house.fridge for f in fridges):
+        fridges.append(house_fridge(cfg.house.fridge))
+    return fridges
 
 
 def _house(se: Settings, cfg: KitchenConfig) -> dict[str, str]:
@@ -129,14 +136,21 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
         # the yaml is what an installer knows; settings.json in the state folder is what the house decided after
         app.state.settings = Settings(cfg.state_path)
         st = app.state.settings
-        fridges = st.effective_fridges(cfg.fridges)
+        fridges = _wall(st, cfg)
         sour = st.data.get("sour_after_days")
         # a magnet's life: the page's say first, the yaml's (an installer's defaults) second
         life = st.data.get("magnets") or {}
         app.state.store = Store(cfg.state_path / "kitchen.json", fridges,
                                 sour_after_days=float(sour) if sour is not None else cfg.sour_after_days,
                                 grey_after_hours=float(life.get("grey_after_hours") or cfg.magnets.grey_after_hours),
-                                drawer_after_days=float(life.get("drawer_after_days") or cfg.magnets.drawer_after_days))
+                                drawer_after_days=float(life.get("drawer_after_days") or cfg.magnets.drawer_after_days),
+                                house_fridge=cfg.house.fridge, trim_prefix=cfg.magnets.trim_prefix)
+        # sheets kept for fridges the wall no longer has (a yaml that lost its fridge list, say) are never thrown
+        # out; say so at the door, so an emptier wall than yesterday's reads as a config to fix, not a loss
+        waiting = app.state.store.off_the_wall()
+        if waiting:
+            diag(f"[seren-kitchen] {sum(waiting.values())} sheet(s) kept for fridges not on the wall, back when they are: "
+                 + ", ".join(f"{n or '(none)'} {c}" for n, c in sorted(waiting.items())))
         sos = life.get("stick_on_start")
         app.state.store.stick_on_start = bool(sos) if sos is not None else cfg.magnets.stick_on_start
         gh = st.data.get("github") or {}
@@ -238,7 +252,7 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
         st = _store(request); se = _settings(request)
         hands = set(se.hands()) | {a for a in cfg.fonts.hands if cfg.fonts.hand_for(a) and cfg.fonts.hand_for(a).is_file()}
         sh = se.data.get("house") or {}
-        house = {**_house(se, cfg), "notes_at": sh.get("notes_at") or "top", "hinge": sh.get("hinge") or "right", "fridge": HOUSE_FRIDGE}
+        house = {**_house(se, cfg), "notes_at": sh.get("notes_at") or "top", "hinge": sh.get("hinge") or "right", "fridge": cfg.house.fridge}
         return JSONResponse({"fridges": st.fridges(), "magnets": st.magnets(),
                              "doors": st.sheets(place="door"), "kinds": list(KINDS), "places": list(PLACES),
                              "fonts": {slot: bool(se.font_file(slot) or cfg.fonts.path(slot)) for slot in FONT_SLOTS},
@@ -249,7 +263,7 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
 
     # ── settings: what the house decides after moving in, from the page ───────
     def _rewall(request: Request) -> list[dict[str, Any]]:
-        fridges = _settings(request).effective_fridges(cfg.fridges)
+        fridges = _wall(_settings(request), cfg)
         _store(request).set_fridges(fridges)
         request.app.state.freezer.set_fridges(fridges)
         return fridges
@@ -258,10 +272,11 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
     async def settings_view(request: Request):
         """Everything the page can change, and what the yaml gave as the floor. Never the token."""
         se = _settings(request)
-        return {**se.view(), "mcp": {"path": request.app.state.mcp_path, "signs_as": _signs_as(se, cfg)}, "yaml": {"fonts": {s: bool(cfg.fonts.path(s)) for s in FONT_SLOTS}, "hands": sorted(cfg.fonts.hands),
+        return {**se.view(), "mcp": {"path": request.app.state.mcp_path, "signs_as": _signs_as(se, cfg)},
+                "off_the_wall": _store(request).off_the_wall(), "yaml": {"fonts": {s: bool(cfg.fonts.path(s)) for s in FONT_SLOTS}, "hands": sorted(cfg.fonts.hands),
                                       "github": {"interval_minutes": cfg.github.interval_minutes, "enabled": cfg.github.enabled,
                                                  "token_env": cfg.github.token_env, "token_env_set": bool(token_from_env(cfg.github.token_env))},
-                                      "house": {"person": cfg.house.person, "partner": cfg.house.partner}, "sour_after_days": cfg.sour_after_days,
+                                      "house": {"person": cfg.house.person, "partner": cfg.house.partner, "fridge": cfg.house.fridge}, "sour_after_days": cfg.sour_after_days,
                                       "fridges": [f["name"] for f in cfg.fridges]}}
 
     @app.post("/api/settings/fonts/{slot}")
@@ -375,7 +390,7 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
 
     @app.post("/api/settings/order")
     async def set_order(request: Request):
-        """{"order": ["seren-kitchen", "seren-memory", ...]}: the wall's order, left to right, top to bottom."""
+        """{"order": ["house", "my-app", ...]}: the wall's order, left to right, top to bottom."""
         body = _body(await request.json())
         order = body.get("order")
         if not isinstance(order, list):
@@ -436,7 +451,7 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
 
     @app.post("/api/magnets/{partner}/stick")
     async def stick(request: Request, partner: str):
-        """{"fridge": "seren-memory", "x": 14, "y": 12}: this partner holds that repo now. {"fridge": null}: off
+        """{"fridge": "my-app", "x": 14, "y": 12}: this partner holds that repo now. {"fridge": null}: off
         the wall, onto the counter."""
         body = _body(await request.json())
         return _store(request).stick(partner, body.get("fridge"), body.get("x"), body.get("y"), hand=str(body.get("hand") or ""))
@@ -514,7 +529,7 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
     @app.get("/api/gallery")
     async def gallery(request: Request, fridge: Optional[str] = None):
         """Every face a magnet has worn, newest first, each with the fridge it was hung on and who wears it now.
-        ?fridge=seren-memory for one fridge's; ?fridge= (blank) for the ones that belong to none."""
+        ?fridge=my-app for one fridge's; ?fridge= (blank) for the ones that belong to none."""
         return _store(request).faces(fridge=fridge)
 
     @app.delete("/api/gallery/{face_id}")

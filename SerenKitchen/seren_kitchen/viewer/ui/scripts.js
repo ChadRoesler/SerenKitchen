@@ -288,7 +288,7 @@ function paintWall() {
   $("pillDoors").textContent = `${k.doors.length} on the doors`;
   const sour = k.fridges.reduce((n, f) => n + f.sour, 0);
   $("pillSour").hidden = !sour; $("pillSour").textContent = `${sour} gone sour`; $("pillSour").style.color = "var(--danger)";
-  const house = (k.house && k.house.fridge) || "seren-project";
+  const house = (k.house && k.house.fridge) || "house";
   document.body.classList.toggle("hinge-left", (k.house && k.house.hinge) === "left");
   const little = k.fridges.filter(f => f.name !== house);
   $("bigSub").innerHTML = letters(`ONE BIG FRIDGE · ${little.length} LITTLE ONES`, 2);
@@ -756,7 +756,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("lvGo").onclick = leaveSheet;
   $("lvCancel").onclick = () => $("leaveDlg").close();
   $("oLeave").onclick = () => openLeave();
-  $("houseLeave").onclick = () => { OPEN = (KITCHEN && KITCHEN.house && KITCHEN.house.fridge) || "seren-project"; openLeave(); };
+  $("houseLeave").onclick = () => { OPEN = (KITCHEN && KITCHEN.house && KITCHEN.house.fridge) || "house"; openLeave(); };
   $("oBack").onclick = () => showTab("wall");
   $("fridgeEmpty").onclick = () => showTab("wall");
   $("oDrawerPull").onclick = () => {
@@ -778,7 +778,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try { const r = await api("/api/freezer/refresh", { method: "POST" }); toast(`clunk. ice. freezer: ${r.read} read from GitHub${Object.keys(r.unreadable).length ? `, ${Object.keys(r.unreadable).length} unreadable` : ""}`); await loadWall(); } catch (e) { toast(why(e)); }
     setTimeout(() => b.classList.remove("pressed"), 600);
   };
-  // #fridge=seren-memory opens that fridge straight away: a link to a fridge is a thing you can send,
+  // #fridge=my-app opens that fridge straight away: a link to a fridge is a thing you can send,
   // on a fresh load and when the hash changes under an open page; #sheet=<id> opens a sheet
   const fromHash = () => {
     const m = /fridge=([\w-]+)/.exec(location.hash || ""); if (m) openFridge(m[1]);

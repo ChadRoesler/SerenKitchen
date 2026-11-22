@@ -6,13 +6,14 @@ import pytest
 from fastapi.testclient import TestClient
 from seren_meninges import ServerConfig
 
+from conftest import WALL
 from seren_kitchen._describe import ACCENT, PORT
 from seren_kitchen.app import FEATURES, create_app
 from seren_kitchen.config import FontsConfig, KitchenConfig, load_config
 
 
 def client(tmp_path, bearer: str = "", fonts: FontsConfig | None = None) -> TestClient:
-    cfg = KitchenConfig(server=ServerConfig(host="127.0.0.1", port=PORT, bearer_token=bearer),
+    cfg = KitchenConfig(fridges=WALL, server=ServerConfig(host="127.0.0.1", port=PORT, bearer_token=bearer),
                         state_dir=str(tmp_path / "state"), fonts=fonts or FontsConfig())
     return TestClient(create_app(cfg, run_freezer=False))
 
@@ -57,7 +58,7 @@ def test_the_wall_in_one_call(tmp_path):
         k = c.get("/api/kitchen").json()
     names = [f["name"] for f in k["fridges"]]
     assert "seren-memory" in names and "seren-kitchen" in names
-    assert k["doors"] and k["doors"][0]["fridge"] == "seren-kitchen"        # the housewarming note
+    assert k["doors"] and k["doors"][0]["fridge"] == "house"        # the housewarming note, on the house's own fridge
     assert k["kinds"][0] == "now" and k["fonts"] == {"name": False, "freezer": False, "hand": False}
     mem = next(f for f in k["fridges"] if f["name"] == "seren-memory")
     assert mem["accent"] == "#ff6e8a" and mem["counts"]["door"] == 0 and mem["held_by"] == []
@@ -170,7 +171,7 @@ def test_config_merges_the_yaml_onto_the_family(tmp_path):
 def test_the_house_and_each_authors_hand(tmp_path):
     hand = tmp_path / "alex.ttf"; hand.write_bytes(b"\0\1\0\0 pretend")
     from seren_kitchen.config import HouseConfig
-    cfg = KitchenConfig(server=ServerConfig(host="127.0.0.1", port=PORT), state_dir=str(tmp_path / "s"),
+    cfg = KitchenConfig(fridges=WALL, server=ServerConfig(host="127.0.0.1", port=PORT), state_dir=str(tmp_path / "s"),
                         fonts=FontsConfig(hands={"alex": str(hand), "nobody": str(tmp_path / "missing.ttf")}),
                         house=HouseConfig(person="alex", partner="ada"))
     with TestClient(create_app(cfg, run_freezer=False)) as c:

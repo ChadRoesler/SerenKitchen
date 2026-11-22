@@ -8,6 +8,7 @@ import zlib
 from fastapi.testclient import TestClient
 from seren_meninges import ServerConfig
 
+from conftest import WALL
 from seren_kitchen.app import MAX_ART, create_app
 from seren_kitchen.config import KitchenConfig
 
@@ -21,7 +22,7 @@ def png(w=2, h=2, colour=(220, 160, 60)) -> bytes:
 
 
 def client(tmp_path, bearer=""):
-    cfg = KitchenConfig(server=ServerConfig(host="127.0.0.1", port=7431, bearer_token=bearer), state_dir=str(tmp_path / "s"))
+    cfg = KitchenConfig(fridges=WALL, server=ServerConfig(host="127.0.0.1", port=7431, bearer_token=bearer), state_dir=str(tmp_path / "s"))
     return TestClient(create_app(cfg, run_freezer=False))
 
 

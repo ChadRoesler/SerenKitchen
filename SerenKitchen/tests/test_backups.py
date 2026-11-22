@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from seren_meninges import ServerConfig
 
+from conftest import WALL
 from seren_kitchen.app import create_app
 from seren_kitchen.config import BackupConfig, KitchenConfig, load_config
 
@@ -18,7 +19,7 @@ TOKEN = "ghp_" + "x" * 36
 
 
 def cfg_at(tmp_path, **backup) -> KitchenConfig:
-    return KitchenConfig(server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "home" / "state"),
+    return KitchenConfig(fridges=WALL, server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "home" / "state"),
                          backup=BackupConfig(every_hours=0, **backup))
 
 

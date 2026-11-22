@@ -93,8 +93,10 @@ def _folder(cwd: str) -> str:
     parts = [p for p in re.split(r"[\\/]+", str(cwd or "")) if p]
     return parts[-1] if parts else ""
 
-# the first sheet in a new kitchen, so the first door is never bare
-HOUSEWARMING = {"fridge": "seren-kitchen", "kind": "person", "title": "the fridge is ours.",
+# the house's own fridge, when the yaml names none: its sheets go on the big fridge's door and freezer
+HOUSE_FRIDGE = "house"
+# the first sheet in a new kitchen, on the house's own fridge, so the first door is never bare
+HOUSEWARMING = {"kind": "person", "title": "the fridge is ours.",
                 "lines": ["don't touch the cheese."], "author": "the kitchen", "pin": "#d0393e"}
 
 
@@ -148,8 +150,13 @@ class KitchenError(ValueError):
 
 class Store:
     def __init__(self, path: Path, fridges: list[dict[str, Any]], sour_after_days: float = 7.0,
-                 grey_after_hours: float = GREY_AFTER_HOURS, drawer_after_days: float = DRAWER_AFTER_DAYS):
+                 grey_after_hours: float = GREY_AFTER_HOURS, drawer_after_days: float = DRAWER_AFTER_DAYS,
+                 house_fridge: str = HOUSE_FRIDGE, trim_prefix: str = ""):
         self.path = Path(path)
+        # the fridge that is the house itself (the big fridge), and a prefix every fridge of this house shares that a
+        # hand leaves off (fridge acme-billing, prefix acme-: hand billing). Neither names anything by default.
+        self.house_fridge = (house_fridge or HOUSE_FRIDGE).strip()
+        self.trim_prefix = (trim_prefix or "").strip().lower()
         self.sour_after = float(sour_after_days) * 86400.0
         # a magnet's life (the house can change both from the page): bright while its session was seen within
         # grey_after, grey after that or once it ends, in the drawer once quiet past drawer_after
@@ -206,9 +213,9 @@ class Store:
                 os.replace(self.path, self.path.with_suffix(".json.unreadable"))
             except OSError:
                 pass
-        # a brand-new kitchen gets its housewarming note (on the kitchen's own fridge, when it is on the wall)
-        if not self._data["sheets"] and HOUSEWARMING["fridge"] in self._fridges:
-            self._leave(**HOUSEWARMING)
+        # a brand-new kitchen gets its housewarming note, on the house's own fridge
+        if not self._data["sheets"] and self.house_fridge in self._fridges:
+            self._leave(fridge=self.house_fridge, **HOUSEWARMING)
             self._save()
 
     def _save(self) -> None:
@@ -220,6 +227,15 @@ class Store:
     # ── fridges and their freezer facts ───────────────────────────────────────
     def fridge_names(self) -> list[str]:
         return list(self._fridges)
+
+    def off_the_wall(self) -> dict[str, int]:
+        """Sheets kept for a fridge that is not on the wall now, by fridge. They are never thrown out: they come
+        back the moment their fridge does (a yaml that lost its fridges on an upgrade, a fridge hidden from the page)."""
+        out: dict[str, int] = {}
+        for s in self._data["sheets"].values():
+            if s.get("fridge") not in self._fridges and not s.get("reply_to"):
+                out[s.get("fridge") or ""] = out.get(s.get("fridge") or "", 0) + 1
+        return out
 
     def set_fridges(self, fridges: list[dict[str, Any]]) -> None:
         """The wall changed from the page (a fridge added, hidden or reordered): sheets on a fridge that is
@@ -287,9 +303,10 @@ class Store:
         return name
 
     def _fridge_for_hand(self, hand: str) -> Optional[str]:
-        """The fridge a hand is named after (kitchen and kitchen-2 are seren-kitchen's), when there is one."""
+        """The fridge a hand is named after (billing and billing-2 are acme-billing's, with the prefix acme-), when
+        there is one."""
         base = re.sub(r"-\d+$", "", (hand or "").strip().lower())
-        for name in (f"seren-{base}", base):
+        for name in ((self.trim_prefix + base) if self.trim_prefix else "", base):
             if base and name in self._fridges:
                 return name
         return None
@@ -380,7 +397,8 @@ class Store:
 
     # ── sessions on magnets ───────────────────────────────────────────────────
     def fridge_for_folder(self, cwd: str) -> Optional[str]:
-        """The fridge whose repo that folder is (D:/x/SerenCarabiners is seren-carabiner's), or None."""
+        """The fridge whose repo that folder is (D:/x/AcmeBilling is the fridge whose repo is someone/AcmeBilling),
+        or None."""
         folder = _folder(cwd)
         for f in self._fridges.values():
             repo = str(f.get("repo") or "")
@@ -390,10 +408,12 @@ class Store:
 
     def hand_for(self, cwd: str) -> str:
         """The hand a session in that folder is, when it names none: the fridge whose repo the folder is
-        named after, without the family prefix (SerenCarabiners -> carabiner); else the folder's name."""
+        named after, without the house's prefix when it has one (acme-billing, prefix acme-: billing); else the
+        folder's name."""
         name = self.fridge_for_folder(cwd)
         if name:
-            return name[6:] if name.startswith("seren-") else name
+            p = self.trim_prefix
+            return name[len(p):] if p and name.lower().startswith(p) and len(name) > len(p) else name
         return re.sub(r"[^a-z0-9-]+", "-", _folder(cwd).lower()).strip("-")[:40]
 
     def _state(self, m: dict[str, Any]) -> str:
@@ -681,9 +701,13 @@ class Store:
                open_only: bool = False, author: Optional[str] = None, replies: bool = False,
                waiting: bool = False) -> list[dict[str, Any]]:
         """The sheets that match. Replies ride under their parent (`replies` on the view) and are left out
-        of the list itself unless asked for. `waiting`: only sheets with a pick nobody has made."""
+        of the list itself unless asked for. `waiting`: only sheets with a pick nobody has made. A sheet kept for a
+        fridge that is not on the wall (hidden, or gone from the yaml) is left out: it waits, unread, until its
+        fridge is back (off_the_wall counts them)."""
         out = []
         for s in self._data["sheets"].values():
+            if s.get("fridge") not in self._fridges:
+                continue
             if s.get("reply_to") and not replies:
                 continue
             if waiting and not _waiting(s):

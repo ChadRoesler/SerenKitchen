@@ -6,18 +6,18 @@ import json
 
 import pytest
 
-from seren_kitchen._constellation import default_fridges
+from conftest import WALL
 from seren_kitchen.store import HOUSEWARMING, KitchenError, Store
 
 
 @pytest.fixture
 def store(tmp_path):
-    return Store(tmp_path / "kitchen.json", default_fridges(), sour_after_days=7)
+    return Store(tmp_path / "kitchen.json", WALL, sour_after_days=7)
 
 
 def test_a_new_kitchen_has_the_housewarming_note_and_nothing_else(store):
     sheets = store.sheets()
-    assert len(sheets) == 1 and sheets[0]["title"] == HOUSEWARMING["title"] and sheets[0]["fridge"] == "seren-kitchen"
+    assert len(sheets) == 1 and sheets[0]["title"] == HOUSEWARMING["title"] and sheets[0]["fridge"] == "house"
     assert sheets[0]["place"] == "door" and sheets[0]["author"] == "the kitchen"
 
 
@@ -87,7 +87,7 @@ def test_a_decision_needs_options_and_a_pick_finishes_it(store):
 
 
 def test_a_decision_left_too_long_goes_sour(tmp_path):
-    st = Store(tmp_path / "k.json", default_fridges(), sour_after_days=0)    # sour the moment it is made
+    st = Store(tmp_path / "k.json", WALL, sour_after_days=0)    # sour the moment it is made
     d = st.leave(fridge="seren-probe", kind="decision", title="which arm", options=["x", "y"])
     import time; time.sleep(0.01)
     assert st.sheet(d["id"])["sour"] is True
@@ -141,13 +141,13 @@ def test_facts_on_the_freezer(store):
 
 def test_the_file_is_whole_and_comes_back_the_same(tmp_path):
     path = tmp_path / "kitchen.json"
-    st = Store(path, default_fridges())
+    st = Store(path, WALL)
     s = st.leave(fridge="seren-margin", kind="self", title="remember the milk", lines=["milk"], author="ada")
     st.stick("ada", "seren-margin")
     st.set_facts("seren-margin", release="5.3.0")
     raw = json.loads(path.read_text(encoding="utf-8"))
     assert set(raw) == {"facts", "magnets", "sheets", "faces"} and s["id"] in raw["sheets"]
-    again = Store(path, default_fridges())
+    again = Store(path, WALL)
     assert again.sheet(s["id"])["title"] == "remember the milk"
     assert again.magnet("ada")["fridge"] == "seren-margin"
     assert len(again) == 2                                     # the housewarming note and this one
@@ -157,7 +157,7 @@ def test_the_file_is_whole_and_comes_back_the_same(tmp_path):
 def test_a_corrupt_file_is_set_aside_not_fatal(tmp_path):
     path = tmp_path / "kitchen.json"
     path.write_text("{not json", encoding="utf-8")
-    st = Store(path, default_fridges())
+    st = Store(path, WALL)
     assert len(st) == 1 and (tmp_path / "kitchen.json.unreadable").exists()
 
 

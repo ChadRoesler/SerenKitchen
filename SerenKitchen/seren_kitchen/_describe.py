@@ -21,8 +21,8 @@ GROUP = "auxiliary"
 ACCENT = "#e0514b"
 
 # Nothing to install first. The freezer's facts (releases, builds) arrive over
-# HTTP from whoever knows them; a kitchen with no fridges configured still
-# serves its page and says so.
+# HTTP from whoever knows them; a kitchen ships knowing no repos, and a new one
+# is the house's own fridge with a note on its door.
 REQUIRES: tuple = ()
 # mcp: the kitchen's own MCP endpoint at /mcp, for a partner in a house with no Workbench.
 EXTRAS: tuple = ("mcp",)

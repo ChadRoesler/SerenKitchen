@@ -1,5 +1,5 @@
 """The viewer's script leans on the Meninges shell for its polling: watch() and keepingScroll(), nothing of its
-own (Chad's ruling, 10 Nov 2026: one mechanism for the whole family, so five one-off styles become one). node,
+own (a ruling, 10 Nov 2026: one mechanism for the whole family, so five one-off styles become one). node,
 when the box has it, checks that the script parses."""
 from __future__ import annotations
 

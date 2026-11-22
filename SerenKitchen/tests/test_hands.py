@@ -6,6 +6,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from seren_meninges import ServerConfig
 
+from conftest import WALL
 from seren_kitchen.app import create_app
 from seren_kitchen.config import KitchenConfig
 from seren_kitchen.store import Store
@@ -42,7 +43,7 @@ def test_a_sheet_says_which_hand_left_it_and_authors_ignore_case(tmp_path):
 
 
 def test_hands_over_http_and_an_older_magnet_survives(tmp_path):
-    cfg = KitchenConfig(server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "s"))
+    cfg = KitchenConfig(fridges=WALL, server=ServerConfig(host="127.0.0.1", port=7431), state_dir=str(tmp_path / "s"))
     with TestClient(create_app(cfg, run_freezer=False)) as c:
         face = c.post("/api/magnets", json={"partner": "ada", "picture": FACE}).json()["picture"]
         m = c.post("/api/magnets", json={"partner": "ada", "hand": "carabiner", "starter": "the carabiner ada"}).json()

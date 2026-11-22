@@ -11,8 +11,16 @@ seren-kitchen --describe           # its identity card, stdlib only
 
 ## What is on the wall
 
-**Fridges.** One per app, each in the colour its own Starwright card declares.
-The wall starts as the whole family; the yaml adds, drops or recolours. The
+**Fridges.** One per app or repo, each in a colour of its own. A kitchen ships
+knowing no repos: a new wall is one fridge, the house's own (the big fridge
+the page is drawn on, `house.fridge`, `house` unless the yaml names it), with
+the housewarming note on its door. The rest are whatever the yaml lists under
+`fridges:` and the house page adds. A fridge whose `repo` is set knows that
+repo's folder: a session started there holds that fridge from its first
+minute, as a hand named after it (`magnets.trim_prefix` leaves off a prefix
+the house's fridges share: `acme-billing` with `acme-` is the hand `billing`).
+A sheet on a fridge that leaves the wall is kept, never shown, and back when
+its fridge is; `GET /api/settings` counts them under `off_the_wall`. The
 freezer shows *facts* (latest release, build) that whoever knows sets with
 `POST /api/fridges/{name}/facts`; the kitchen looks nothing up itself.
 

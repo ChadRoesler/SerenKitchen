@@ -4,21 +4,21 @@ Where it's read from, first found wins:
 
     --config  ->  $SEREN_KITCHEN_CONFIG  ->  ~/seren-kitchen/seren-kitchen.yaml  ->  defaults
 
-The fridges start as the whole family (_constellation.py) and the yaml adds, drops
-or recolours. The fonts are PATHS to files on this box, never shipped: the display
+The wall starts with one fridge, the house's own (the big fridge), and the fridges
+are whatever the yaml lists and the page adds: a kitchen ships knowing no repos. The fonts are PATHS to files on this box, never shipped: the display
 faces on the freezer are whatever you own a licence for, and the handwriting on the
 notes is whoever's hand lives here. Unset, the page falls back to system fonts.
 """
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from seren_meninges import ServerConfig
 
-from ._constellation import default_fridges
 from ._describe import PORT as DEFAULT_PORT
 from ._diag import diag
 
@@ -66,11 +66,18 @@ class HouseConfig:
     Blank, it says 'the person' and 'the partner'."""
     person: str = ""
     partner: str = ""
+    # the slug of the house's own fridge: the big fridge the wall is drawn on, always there
+    fridge: str = "house"
 
     @classmethod
     def from_dict(cls, d: Any) -> "HouseConfig":
         d = d if isinstance(d, dict) else {}
-        return cls(person=str(d.get("person") or "").strip()[:40], partner=str(d.get("partner") or "").strip()[:40])
+        fridge = str(d.get("fridge") or "").strip().lower()[:40]
+        if fridge and not _SLUG.fullmatch(fridge):
+            diag(f"[seren-kitchen] config: house.fridge {fridge!r} is not a slug; keeping 'house'")
+            fridge = ""
+        return cls(person=str(d.get("person") or "").strip()[:40], partner=str(d.get("partner") or "").strip()[:40],
+                   fridge=fridge or "house")
 
 
 @dataclass
@@ -121,10 +128,13 @@ class UpdatesConfig:
 class MagnetsConfig:
     """A magnet's life, as an installer's defaults: the house page's own say beats these. Bright while its session
     was seen within grey_after_hours, grey after, in the drawer under the counter once quiet past drawer_after_days.
-    stick_on_start: a session in a folder that is a fridge's repo holds it from its first minute."""
+    stick_on_start: a session in a folder that is a fridge's repo holds it from its first minute.
+    trim_prefix: a prefix every fridge name of the house shares, left off the hand a session takes from its repo
+    (fridge acme-billing, prefix acme-: the hand is billing). Blank: the hand is the fridge's whole name."""
     grey_after_hours: float = 12.0
     drawer_after_days: float = 3.0
     stick_on_start: bool = True
+    trim_prefix: str = ""
 
     @classmethod
     def from_dict(cls, d: Any) -> "MagnetsConfig":
@@ -138,6 +148,7 @@ class MagnetsConfig:
                 diag(f"[seren-kitchen] config: magnets.{key} is a number; keeping {getattr(out, key)}")
         if "stick_on_start" in d:
             out.stick_on_start = bool(d["stick_on_start"])
+        out.trim_prefix = str(d.get("trim_prefix") or "").strip().lower()[:20]
         return out
 
 
@@ -197,15 +208,27 @@ class McpConfig:
         return cls(enabled=bool(d.get("enabled", True)), author=str(d.get("author") or "").strip()[:40])
 
 
+_SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
+
+
+def house_fridge(name: str = "house") -> Dict[str, Any]:
+    """The house's own fridge as the wall carries it, when nothing says otherwise."""
+    return {"name": name, "display": "The House", "group": "house", "accent": "#c9c2d6", "repo": ""}
+
+
 def _merge_fridges(raw: Any, drop: Any) -> List[Dict[str, Any]]:
-    """The family, then the yaml's say: a listed name that exists is recoloured or renamed
-    in place, a new one is appended, and `drop` takes names off the wall."""
-    fridges = default_fridges()
-    by_name = {f["name"]: f for f in fridges}
+    """The yaml's fridges, in its order: a name listed twice is the first one changed by the second, and `drop`
+    takes names off the wall. Nothing is on it that the yaml (or later the page) did not put there; the house's
+    own fridge is added by the app whatever this says."""
+    fridges: List[Dict[str, Any]] = []
+    by_name: Dict[str, Dict[str, Any]] = {}
     for item in raw if isinstance(raw, list) else []:
         if not isinstance(item, dict) or not item.get("name"):
             continue
-        name = str(item["name"])
+        name = str(item["name"]).strip()
+        if not _SLUG.fullmatch(name):
+            diag(f"[seren-kitchen] config: fridge {name!r} is not a slug (lowercase letters, digits, dashes); left off")
+            continue
         target = by_name.get(name)
         if target is None:
             target = {"name": name, "display": name, "group": "other", "accent": "#cccccc", "repo": ""}
@@ -222,7 +245,7 @@ class KitchenConfig:
     server: ServerConfig = field(default_factory=lambda: ServerConfig(host=DEFAULT_HOST, port=DEFAULT_PORT))
     state_dir: str = DEFAULT_STATE_DIR
     fonts: FontsConfig = field(default_factory=FontsConfig)
-    fridges: List[Dict[str, Any]] = field(default_factory=default_fridges)
+    fridges: List[Dict[str, Any]] = field(default_factory=list)
     # a decision nobody has picked in this many days goes off like milk
     sour_after_days: float = 7.0
     github: GithubConfig = field(default_factory=GithubConfig)

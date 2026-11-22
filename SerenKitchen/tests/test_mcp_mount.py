@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from seren_meninges import ServerConfig
 
+from conftest import WALL
 from seren_kitchen._describe import PORT
 from seren_kitchen.app import create_app
 from seren_kitchen.config import HouseConfig, KitchenConfig, McpConfig, load_config
@@ -25,7 +26,7 @@ def impl(tmp_path) -> KitchenToolImpl:
 
 
 def config(tmp_path, bearer: str = "", **kw) -> KitchenConfig:
-    return KitchenConfig(server=ServerConfig(host="127.0.0.1", port=PORT, bearer_token=bearer), state_dir=str(tmp_path / "state"),
+    return KitchenConfig(fridges=WALL, server=ServerConfig(host="127.0.0.1", port=PORT, bearer_token=bearer), state_dir=str(tmp_path / "state"),
                          house=HouseConfig(person="alex", partner="ada"), **kw)
 
 
