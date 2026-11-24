@@ -635,13 +635,18 @@ async function loadSettings() {
   const wall = (KITCHEN && KITCHEN.fridges) || [];
   const hidden = new Set(s.fridges.hidden || []);
   const all = wall.slice();
+  const added = new Set((s.fridges.extra || []).map(x => x.name));
+  const houseName = (KITCHEN && KITCHEN.house && KITCHEN.house.fridge) || "house";
+  const onWall = wall.map(f => f.name);
+  const options = (but) => onWall.filter(n => n !== but).map(n => `<option value="${escapeHtml(n)}">${escapeHtml(display(n))}</option>`).join("");
   for (const h of hidden) { if (!all.find(f => f.name === h)) all.push({ name: h, display: h, group: "", accent: "#999999", repo: "", counts: {} }); }
   $("fridgeRows").innerHTML = all.map((f, i) => `<div class="row fridge-row" data-name="${f.name}">` +
     `<button class="ghost" data-up="${f.name}" title="up">▲</button><button class="ghost" data-down="${f.name}" title="down">▼</button>` +
     `<input type="color" data-k="accent" value="${f.accent}" title="colour"><input data-k="display" value="${escapeHtml(f.display)}" maxlength="40" style="width:150px">` +
     `<input data-k="group" value="${escapeHtml(f.group || "")}" maxlength="20" style="width:90px"><input data-k="repo" value="${escapeHtml(f.repo || "")}" placeholder="owner/repo" style="flex:1">` +
     `<label class="row" style="margin:0"><input type="checkbox" data-k="hidden" ${hidden.has(f.name) ? "checked" : ""}> <span class="lab tiny">hidden</span></label>` +
-    `<span class="tiny dim" style="min-width:90px">${escapeHtml(f.name)}</span></div>`).join("");
+    `<span class="tiny dim" style="min-width:90px">${escapeHtml(f.name)}</span>` +
+    (added.has(f.name) && f.name !== houseName ? `<button class="ghost" data-remove="${f.name}" title="remove this fridge for good">✕</button>` : "") + `</div>`).join("");
   $("fridgeRows").querySelectorAll(".fridge-row").forEach(row => {
     row.querySelectorAll("input").forEach(inp => inp.onchange = async () => {
       const k = inp.dataset.k, v = inp.type === "checkbox" ? inp.checked : inp.value;
@@ -656,6 +661,35 @@ async function loadSettings() {
     [order[i], order[j]] = [order[j], order[i]];
     try { await api("/api/settings/order", { method: "POST", body: JSON.stringify({ order }) }); await loadWall(); await loadSettings(); } catch (e) { say("fridgeMsg", why(e), true); }
   };
+  // removing one the page added: its sheets go where the house says, or wait for a fridge by that name
+  $("fridgeRows").querySelectorAll("[data-remove]").forEach(b => b.onclick = async () => {
+    const name = b.dataset.remove, f = wall.find(x => x.name === name) || { counts: {} };
+    const n = Object.values(f.counts || {}).reduce((a, c) => a + c, 0);
+    let to = "";
+    if (n) {
+      to = (prompt(`${name} has ${n} sheet(s). Move them to which fridge? (${onWall.filter(x => x !== name).join(", ")})
+Blank keeps them for if ${name} is ever added again.`, houseName) || "").trim();
+      if (to && !onWall.includes(to)) { say("fridgeMsg", `${to} is not a fridge on the wall; nothing removed.`, true); return; }
+    } else if (!confirm(`Remove ${name} for good?`)) return;
+    try {
+      const r = await api(`/api/settings/fridges/${name}` + (to ? `?move_to=${encodeURIComponent(to)}` : ""), { method: "DELETE" });
+      say("fridgeMsg", `${name} removed` + (r.sheets_moved ? `; ${r.sheets_moved} sheet(s) moved to ${r.to}` : "") + (r.sheets_kept ? `; ${r.sheets_kept} kept for if it comes back` : "") +
+        (r.magnets_set_down.length ? `; ${r.magnets_set_down.join(", ")} back on the counter` : "") + ".");
+      await loadWall(); await loadSettings();
+    } catch (e) { say("fridgeMsg", await detail(e, `/api/settings`), true); }
+  });
+  // sheets kept for fridges that are not on the wall: shown here, so they can find a door again
+  const off = Object.entries(s.off_the_wall || {});
+  $("offWall").hidden = !off.length;
+  $("offWall").innerHTML = off.length ? `<h4>Sheets off the wall</h4><p class="muted tiny">Kept for fridges that are not on the wall; they come back if the fridge does, or move them to one that is.</p>` +
+    off.map(([name, n]) => `<div class="row fridge-row"><span style="min-width:150px">${escapeHtml(name || "(no fridge)")}</span><span class="tiny dim">${n} sheet(s)</span>` +
+      `<select data-off="${escapeHtml(name)}"><option value="">move to…</option>${options(name)}</select></div>`).join("") : "";
+  $("offWall").querySelectorAll("[data-off]").forEach(sel => sel.onchange = async () => {
+    if (!sel.value) return;
+    try { const r = await api(`/api/fridges/${encodeURIComponent(sel.dataset.off)}/move`, { method: "POST", body: JSON.stringify({ to: sel.value }) });
+          say("fridgeMsg", `${r.moved} sheet(s) moved from ${r.from} to ${r.to}.`); await loadWall(); await loadSettings(); }
+    catch (e) { say("fridgeMsg", await detail(e, `/api/fridges`), true); }
+  });
   $("fridgeRows").querySelectorAll("[data-up]").forEach(b => b.onclick = () => move(b.dataset.up, -1));
   $("fridgeRows").querySelectorAll("[data-down]").forEach(b => b.onclick = () => move(b.dataset.down, 1));
 }

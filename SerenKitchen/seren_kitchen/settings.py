@@ -18,8 +18,11 @@ import json
 import os
 import re
 import threading
+import time
 from pathlib import Path
 from typing import Any, Optional
+
+from ._diag import diag
 
 FONT_SLOTS = ("name", "freezer", "hand")
 FONT_EXT = {"font/ttf": "ttf", "font/otf": "otf", "font/woff": "woff", "font/woff2": "woff2",
@@ -41,19 +44,59 @@ class Settings:
 
     # ── the file ──────────────────────────────────────────────────────────────
     def _load(self) -> None:
+        """The file, read leniently. It is the page's own notebook, but it is a file on a box and a person can open
+        it: a part of it in the wrong shape (a list where the fridges' settings go, say) is left out with a line in
+        the log, never a kitchen that will not start. And since the next change from the page writes the file
+        whole, what was refused is copied aside first, so nothing a person typed is lost."""
+        self.problems: list[str] = []
         try:
-            raw = json.loads(self.path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, ValueError):
+            text = self.path.read_text(encoding="utf-8")
+        except (FileNotFoundError, OSError):
             return
-        if isinstance(raw, dict):
-            for k, v in raw.items():
-                if isinstance(self.data.get(k), dict) and isinstance(v, dict):
-                    self.data[k].update(v)
-                else:
-                    self.data[k] = v
-            self.data["fonts"].setdefault("hands", {})
-            self.data["fridges"].setdefault("order", []); self.data["fridges"].setdefault("extra", [])
-            self.data["fridges"].setdefault("hidden", []); self.data["fridges"].setdefault("overrides", {})
+        try:
+            raw = json.loads(text)
+        except ValueError as exc:
+            self._refused(f"settings.json is not JSON ({exc}); the page's settings start over")
+            return
+        if not isinstance(raw, dict):
+            self._refused(f"settings.json holds a {type(raw).__name__}, not the page's settings; they start over")
+            return
+        for k, v in raw.items():
+            have = self.data.get(k)
+            if isinstance(have, dict) and not isinstance(v, dict):
+                self.problems.append(f"{k!r} is a {type(v).__name__}, not a mapping")
+            elif isinstance(have, dict):
+                have.update(v)
+            else:
+                self.data[k] = v
+        shapes = {("fonts", "hands"): dict, ("fridges", "order"): list, ("fridges", "extra"): list,
+                  ("fridges", "hidden"): list, ("fridges", "overrides"): dict}
+        for (section, key), kind in shapes.items():
+            v = self.data[section].get(key)
+            if v is not None and not isinstance(v, kind):
+                self.problems.append(f"{section}.{key} is a {type(v).__name__}, not a {kind.__name__}")
+                v = None
+            if v is None:
+                self.data[section][key] = kind()
+        # a fridge added from the page is a mapping with a name; anything else in the list is left out
+        extra = self.data["fridges"]["extra"]
+        good = [x for x in extra if isinstance(x, dict) and isinstance(x.get("name"), str) and x["name"].strip()]
+        if len(good) != len(extra):
+            self.problems.append(f"{len(extra) - len(good)} of fridges.extra are not a fridge (a mapping with a name)")
+            self.data["fridges"]["extra"] = good
+        if self.problems:
+            self._refused("settings.json: " + "; ".join(self.problems) + " (left out; the rest is read)", aside=text)
+
+    def _refused(self, why: str, aside: Optional[str] = None) -> None:
+        """Say what was refused, keep the file as it was beside it, and carry on."""
+        if why not in self.problems:
+            self.problems.append(why)
+        keep = self.path.with_name(f"settings.json.refused-{time.strftime('%Y%m%d-%H%M%S')}")
+        try:
+            keep.write_text(aside if aside is not None else self.path.read_text(encoding="utf-8"), encoding="utf-8")
+            diag(f"[seren-kitchen] {why}. The file as it was is kept as {keep.name}.")
+        except OSError as exc:
+            diag(f"[seren-kitchen] {why}. (Could not keep a copy: {exc}.)")
 
     def _save(self) -> None:
         self.state.mkdir(parents=True, exist_ok=True)
@@ -240,6 +283,24 @@ class Settings:
             self._save()
             return cur
 
+    def added_here(self, name: str) -> bool:
+        return any(x.get("name") == name for x in self.data["fridges"]["extra"])
+
+    def drop_fridge(self, name: str) -> bool:
+        """A fridge added from the page, gone for good: out of the added ones, and its colour, name, hiding and
+        place in the order with it, so one added again by that name starts fresh. False when the page did not add
+        it (a yaml's fridge is the yaml's to take away). Its sheets are the store's business, not this file's."""
+        with self._lock:
+            if not self.added_here(name):
+                return False
+            f = self.data["fridges"]
+            f["extra"] = [x for x in f["extra"] if x.get("name") != name]
+            f["overrides"].pop(name, None)
+            f["hidden"] = [h for h in f["hidden"] if h != name]
+            f["order"] = [n for n in f["order"] if n != name]
+            self._save()
+            return True
+
     def set_order(self, names: list[str]) -> list[str]:
         with self._lock:
             self.data["fridges"]["order"] = [str(n) for n in names]
@@ -266,4 +327,5 @@ class Settings:
         return {"fonts": {**{s: self.data["fonts"].get(s) for s in FONT_SLOTS}, "hands": dict(self.data["fonts"]["hands"])},
                 "github": {**self.data["github"], "token_set": self.token_set()},
                 "house": dict(self.data["house"]), "fridges": {k: (list(v) if isinstance(v, list) else dict(v)) for k, v in self.data["fridges"].items()},
-                "sour_after_days": self.data.get("sour_after_days"), "magnets": dict(self.data.get("magnets") or {})}
+                "sour_after_days": self.data.get("sour_after_days"), "magnets": dict(self.data.get("magnets") or {}),
+                **({"refused": list(self.problems)} if self.problems else {})}

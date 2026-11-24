@@ -388,6 +388,43 @@ def create_app(config: Optional[KitchenConfig] = None, *, github_transport: Opti
         _rewall(request)
         return {"name": name, "overrides": ov, "hidden": name in _settings(request).data["fridges"]["hidden"]}
 
+    @app.delete("/api/settings/fridges/{name}")
+    async def remove_fridge(request: Request, name: str, move_to: str = ""):
+        """A fridge added from the page, off the wall for good. ?move_to=<fridge> moves its sheets there first;
+        without it they are kept (off the wall, counted in the settings) and come back if a fridge by that name is
+        ever added again. Its magnets go back on the counter. The house's own fridge stays, and a fridge the yaml
+        lists is the yaml's to take away (hiding it is the page's way)."""
+        se = _settings(request); st = _store(request)
+        if name == cfg.house.fridge:
+            raise HTTPException(400, "the house's own fridge stays: it is the big fridge the wall is drawn on")
+        if name in {f["name"] for f in cfg.fridges}:
+            raise HTTPException(400, f"{name} is in the yaml, so it comes back on every start: take it out of the yaml, "
+                                     f"or hide it here")
+        if not se.added_here(name):
+            raise HTTPException(404, f"no fridge called {name!r} was added from the page")
+        move_to = (move_to or "").strip()
+        moved = 0
+        if move_to:
+            if move_to == name or move_to not in st.fridge_names():
+                raise HTTPException(400, f"move its sheets to a fridge on the wall, not {move_to!r}")
+            moved = st.move_sheets(name, move_to)
+        down = st.set_down_from(name)
+        se.drop_fridge(name)
+        _rewall(request)
+        return {"removed": name, "sheets_moved": moved, **({"to": move_to} if move_to else {}),
+                "sheets_kept": st.kept_for(name), "magnets_set_down": down}
+
+    @app.post("/api/fridges/{name}/move")
+    async def move_sheets(request: Request, name: str):
+        """{"to": "<fridge>"}: every sheet kept for this fridge, on the wall or not, onto another one, the notes
+        stuck on them with them. How sheets left behind by a fridge that is gone find a door again."""
+        body = _body(await request.json())
+        to = str(body.get("to") or "").strip()
+        st = _store(request)
+        if not st.kept_for(name):
+            raise HTTPException(404, f"no sheets are kept for {name!r}")
+        return {"from": name, "to": to, "moved": st.move_sheets(name, to)}
+
     @app.post("/api/settings/order")
     async def set_order(request: Request):
         """{"order": ["house", "my-app", ...]}: the wall's order, left to right, top to bottom."""

@@ -228,6 +228,36 @@ class Store:
     def fridge_names(self) -> list[str]:
         return list(self._fridges)
 
+    def move_sheets(self, src: str, dst: str) -> int:
+        """Every sheet kept for `src` (on the wall or not), the notes stuck on them with them, onto `dst`, where
+        they sit as they sat. How many moved, replies counted."""
+        self._need_fridge(dst)
+        if src == dst:
+            raise KitchenError("a fridge's sheets are already on it")
+        with self._lock:
+            moved = [s for s in self._data["sheets"].values() if s.get("fridge") == src]
+            now = _iso(_now())
+            for s in moved:
+                s["fridge"] = dst; s["updated"] = now
+            if moved:
+                self._save()
+            return len(moved)
+
+    def set_down_from(self, fridge: str) -> list[str]:
+        """Every magnet on that fridge back onto the counter, remembering it as where it was. Their labels."""
+        with self._lock:
+            down = [m for m in self._data["magnets"].values() if m.get("fridge") == fridge]
+            now = _iso(_now())
+            for m in down:
+                m.update(fridge=None, last=fridge, since=now)
+            if down:
+                self._save()
+            return [m["label"] for m in down]
+
+    def kept_for(self, fridge: str) -> int:
+        """How many sheets (replies counted) are kept for that fridge, on the wall or not."""
+        return sum(1 for s in self._data["sheets"].values() if s.get("fridge") == fridge)
+
     def off_the_wall(self) -> dict[str, int]:
         """Sheets kept for a fridge that is not on the wall now, by fridge. They are never thrown out: they come
         back the moment their fridge does (a yaml that lost its fridges on an upgrade, a fridge hidden from the page)."""

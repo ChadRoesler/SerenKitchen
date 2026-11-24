@@ -94,3 +94,83 @@ def test_the_house_and_the_milk(tmp_path):
         assert c.get("/api/kitchen").json()["sour_after_days"] == 3
         assert c.post("/api/settings/sour", json={"days": "soon"}).status_code == 400
         assert "settings" in c.get("/health").json()["features"]
+
+
+def test_a_settings_file_in_the_wrong_shape_is_refused_in_part_not_whole(tmp_path):
+    """settings.json is the page's own, but it is a file a person can open. A section in the wrong shape (the
+    fridges' settings pasted as a list of fridges) is left out with a word, the rest is read, the file as it was
+    is kept beside it, and the kitchen starts."""
+    import json
+    st = tmp_path / "s"
+    st.mkdir()
+    (st / "settings.json").write_text(json.dumps({
+        "house": {"person": "alex", "partner": "ada"},
+        "fridges": [{"name": "my-app", "repo": "me/MyApp"}],
+        "fonts": {"hands": ["not", "a", "mapping"]}}), encoding="utf-8")
+    with client(tmp_path) as c:
+        assert c.get("/health").json()["ok"]
+        h = c.get("/api/kitchen").json()["house"]
+        assert h["person"] == "alex" and h["partner"] == "ada"                          # the good part was read
+        refused = c.get("/api/settings").json()["refused"]
+        assert any("'fridges' is a list" in r for r in refused) and any("fonts.hands is a list" in r for r in refused)
+        kept = list(st.glob("settings.json.refused-*"))
+        assert len(kept) == 1 and json.loads(kept[0].read_text(encoding="utf-8"))["fridges"][0]["name"] == "my-app"
+        # the page works on, and writing the file whole does not lose what was set aside
+        assert c.post("/api/settings/fridges", json={"name": "my-app", "repo": "me/MyApp"}).status_code == 200
+        assert "my-app" in [f["name"] for f in c.get("/api/kitchen").json()["fridges"]]
+    with client(tmp_path) as c:                                                         # and the next start is clean
+        assert "refused" not in c.get("/api/settings").json()
+
+
+def test_a_settings_file_that_is_not_json_or_has_a_bad_fridge_starts_anyway(tmp_path):
+    import json
+    st = tmp_path / "s"
+    st.mkdir()
+    (st / "settings.json").write_text("{ fridges: oops", encoding="utf-8")
+    with client(tmp_path) as c:
+        assert c.get("/health").json()["ok"] and "not JSON" in c.get("/api/settings").json()["refused"][0]
+    assert (st / "settings.json").read_text(encoding="utf-8") == "{ fridges: oops"     # untouched until the page writes
+    (st / "settings.json").write_text(json.dumps({"fridges": {"extra": ["my-app", {"name": "ok-app"}]}}), encoding="utf-8")
+    with client(tmp_path) as c:
+        assert [f for f in c.get("/api/kitchen").json()["fridges"] if f["name"] == "ok-app"]
+        assert "1 of fridges.extra are not a fridge" in c.get("/api/settings").json()["refused"][0]
+
+
+def test_a_fridge_added_from_the_page_can_be_removed_and_its_sheets_go_where_the_house_says(tmp_path):
+    with client(tmp_path) as c:
+        for name in ("side", "scratch"):
+            assert c.post("/api/settings/fridges", json={"name": name, "repo": f"me/{name}"}).status_code == 200
+        c.patch("/api/settings/fridges/side", json={"display": "Side", "hidden": False})
+        a = c.post("/api/fridges/side/sheets", json={"title": "keep me", "author": "alex"}).json()
+        c.post(f"/api/sheets/{a['id']}/reply", json={"body": "me too", "author": "ada"})
+        c.post("/api/magnets/ada/stick", json={"fridge": "side", "hand": "side"})
+        c.post("/api/fridges/scratch/sheets", json={"title": "left behind", "author": "alex"})
+        # moved: the sheet and the note stuck on it go to the other fridge; the magnet goes back on the counter
+        r = c.delete("/api/settings/fridges/side", params={"move_to": "seren-memory"}).json()
+        assert r == {"removed": "side", "sheets_moved": 2, "to": "seren-memory", "sheets_kept": 0, "magnets_set_down": ["ada·side"]}
+        assert "side" not in [f["name"] for f in c.get("/api/kitchen").json()["fridges"]]
+        assert c.get(f"/api/sheets/{a['id']}").json()["fridge"] == "seren-memory" and len(c.get(f"/api/sheets/{a['id']}").json()["replies"]) == 1
+        m = next(m for m in c.get("/api/magnets").json() if m["label"] == "ada·side")
+        assert m["fridge"] is None and m["last"] == "side"
+        s = c.get("/api/settings").json()["fridges"]
+        assert "side" not in s["overrides"] and not [x for x in s["extra"] if x["name"] == "side"]   # one added again starts fresh
+        # kept: off the wall, counted, and movable later
+        assert c.delete("/api/settings/fridges/scratch").json()["sheets_kept"] == 1
+        assert c.get("/api/settings").json()["off_the_wall"] == {"scratch": 1}
+        assert c.post("/api/fridges/scratch/move", json={"to": "house"}).json() == {"from": "scratch", "to": "house", "moved": 1}
+        assert c.get("/api/settings").json()["off_the_wall"] == {}
+
+
+def test_what_cannot_be_removed_says_why(tmp_path):
+    with client(tmp_path) as c:
+        c.post("/api/settings/fridges", json={"name": "side"})
+        assert "house's own fridge stays" in c.delete("/api/settings/fridges/house").json()["detail"]
+        assert "is in the yaml" in c.delete("/api/settings/fridges/seren-memory").json()["detail"]
+        assert c.delete("/api/settings/fridges/nope").status_code == 404
+        assert c.delete("/api/settings/fridges/side", params={"move_to": "side"}).status_code == 400
+        assert c.delete("/api/settings/fridges/side", params={"move_to": "nope"}).status_code == 400
+        assert "side" in [f["name"] for f in c.get("/api/kitchen").json()["fridges"]]      # a refused removal removed nothing
+        assert c.post("/api/fridges/nope/move", json={"to": "house"}).status_code == 404
+        c.post("/api/fridges/side/sheets", json={"title": "x"})
+        assert c.post("/api/fridges/side/move", json={"to": "nope"}).status_code == 400
+        assert c.post("/api/fridges/side/move", json={"to": "side"}).status_code == 400
